@@ -260,7 +260,9 @@ const Sidebar = ({
         <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">📔 Kanish notes</h1>
+                <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    📔 {user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'My'} notes
+                </h1>
                 <button onClick={onOpenSettings} className="p-1 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
                     <FiSettings className="w-4 h-4" />
                 </button>
@@ -359,8 +361,31 @@ const Sidebar = ({
                     )}
                 </div>
             </div>
-            {/* Footer – Theme & Logout */}
+            {/* Footer – User Profile, Theme & Logout */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                {/* User Profile */}
+                <div className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    {user?.picture ? (
+                        <img
+                            src={user.picture}
+                            alt={user.full_name || user.email}
+                            className="w-10 h-10 rounded-full border-2 border-indigo-500"
+                        />
+                    ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                            {(user?.full_name || user?.email || 'U')[0].toUpperCase()}
+                        </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                            {user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {user?.email}
+                        </p>
+                    </div>
+                </div>
+
                 <button
                     onClick={toggleTheme}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded"

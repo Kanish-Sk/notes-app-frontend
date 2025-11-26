@@ -21,7 +21,7 @@ function Home() {
     const [showMongoModal, setShowMongoModal] = useState(false);
     const [pendingNoteCreation, setPendingNoteCreation] = useState(null);
 
-    const { accessToken, user } = useAuth();
+    const { accessToken, user, updateUser } = useAuth();
     const { addToast } = useToast();
     const editorRef = React.useRef(null);
 
@@ -201,20 +201,47 @@ function Home() {
         }
     };
 
-    const handleMongoSetupSuccess = async () => {
+    const handleMongoSetupSuccess = async (updatedUser) => {
         setShowMongoModal(false);
 
-        // Update user's has_database status locally
-        if (user) {
-            user.has_database = true;
+        // Update user with the data from backend
+        if (updatedUser) {
+            updateUser(updatedUser);
+        } else if (user) {
+            // Fallback: manually set has_database if backend didn't return user
+            updateUser({ ...user, has_database: true });
         }
 
         addToast('Database configured successfully!', 'success');
 
-        // Create the pending note if there was one
+        // Create the pending note if there was one, otherwise create a welcome note
         if (pendingNoteCreation !== null) {
             await handleCreateNote(pendingNoteCreation);
             setPendingNoteCreation(null);
+        } else {
+            // Automatically create a welcome note
+            try {
+                const welcomeNote = {
+                    title: 'Welcome to NotesApp! 🎉',
+                    content: `
+                        <h1>Welcome to Your Personal Database!</h1>
+                        <p>Your notes are now stored in your own MongoDB database. You have full control over your data.</p>
+                        <h2>What you can do:</h2>
+                        <ul>
+                            <li>Create unlimited notes and folders</li>
+                            <li>Use the AI assistant to help with writing</li>
+                            <li>Share notes with others</li>
+                            <li>Organize your thoughts effortlessly</li>
+                        </ul>
+                        <p><strong>Start writing your first note below!</strong></p>
+                    `,
+                };
+                const response = await notesAPI.createNote(welcomeNote, accessToken);
+                setNotes([response.data]);
+                setSelectedNote(response.data);
+            } catch (error) {
+                console.error('Error creating welcome note:', error);
+            }
         }
     };
 

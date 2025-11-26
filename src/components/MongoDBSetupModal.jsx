@@ -49,9 +49,9 @@ const MongoDBSetupModal = ({ isOpen, onClose, onSuccess, accessToken }) => {
 
         setSaving(true);
         try {
-            await mongodbAPI.updateUserDatabase(connectionString, accessToken);
-            addToast('Database configured successfully!', 'success');
-            onSuccess();
+            const response = await mongodbAPI.updateUserDatabase(connectionString, accessToken);
+            // Pass updated user object to parent
+            onSuccess(response.data.user);
         } catch (err) {
             addToast('Failed to save database configuration', 'error');
             setError('Failed to save configuration');

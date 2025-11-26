@@ -4,6 +4,8 @@ import { aiAPI, chatsAPI, settingsAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 const AIAssistant = ({
     isOpen,
@@ -456,8 +458,13 @@ const AIAssistant = ({
                                                 {msg.role === 'user' ? (
                                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                                                 ) : (
-                                                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                    <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-purple-600 dark:prose-code:text-purple-400">
+                                                        <ReactMarkdown
+                                                            rehypePlugins={[rehypeRaw]}
+                                                            remarkPlugins={[remarkGfm]}
+                                                        >
+                                                            {msg.content}
+                                                        </ReactMarkdown>
                                                     </div>
                                                 )}
                                                 <p className={`text-[10px] mt-1.5 opacity-70 ${msg.role === 'user' ? 'text-purple-100' : 'text-gray-400'}`}>
