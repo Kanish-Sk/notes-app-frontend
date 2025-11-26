@@ -4,7 +4,7 @@ import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiAlertCircle, FiCheck, FiX, F
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { mongodbAPI } from '../services/api';
+import { mongodbAPI, API_BASE_URL } from '../services/api';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -122,7 +122,7 @@ const Register = () => {
                 requestBody.mongodb_connection_string = formData.mongodbConnectionString;
             }
 
-            const response = await fetch('http://localhost:8000/api/auth/register', {
+            const response = await fetch(`${API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -151,7 +151,7 @@ const Register = () => {
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:8000/api/auth/google', {
+            const response = await fetch(`${API_BASE_URL}/auth/google`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

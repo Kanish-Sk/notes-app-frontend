@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -40,7 +41,7 @@ export const AuthProvider = ({ children }) => {
         try {
             // Call logout endpoint to invalidate refresh token
             if (refreshToken) {
-                await fetch('http://localhost:8000/api/auth/logout', {
+                await fetch(`${API_BASE_URL}/auth/logout`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('No refresh token available');
             }
 
-            const response = await fetch('http://localhost:8000/api/auth/refresh', {
+            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
