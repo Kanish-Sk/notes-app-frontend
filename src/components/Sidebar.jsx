@@ -326,6 +326,8 @@ const Sidebar = ({
                         handleShare={handleShare}
                         startEditing={startEditing}
                         openDeleteModal={openDeleteModal}
+                        setNoteToDelete={setNoteToDelete}
+                        setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                     />
                 ))}
                 {/* Root notes */}
@@ -492,7 +494,9 @@ const FolderNode = ({
     onShareNote,
     handleShare,
     startEditing,
-    openDeleteModal
+    openDeleteModal,
+    setNoteToDelete,
+    setDeleteNoteModalOpen
 }) => {
     const folderId = folder._id || folder.id;
     const isExpanded = expandedFolders.has(folderId);
@@ -608,6 +612,8 @@ const FolderNode = ({
                             handleShare={handleShare}
                             startEditing={startEditing}
                             openDeleteModal={openDeleteModal}
+                            setNoteToDelete={setNoteToDelete}
+                            setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                         />
                     ))}
                     {/* Notes inside this folder */}
