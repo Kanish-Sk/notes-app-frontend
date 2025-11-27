@@ -200,6 +200,25 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const updateProvider = (index, field, value) => {
         const newProviders = [...providers];
         newProviders[index] = { ...newProviders[index], [field]: value };
+
+        // If critical fields change (provider type, API key, or model), invalidate test status
+        const criticalFields = ['provider', 'api_key', 'model'];
+        if (criticalFields.includes(field)) {
+            // Clear test status for this provider
+            const providerId = newProviders[index].name || `provider-${index}`;
+            setTestStatus(prev => {
+                const newStatus = { ...prev };
+                delete newStatus[providerId];
+                return newStatus;
+            });
+
+            // Deactivate the provider until it's tested again
+            newProviders[index].is_active = false;
+
+            // Show toast notification
+            addToast('Please test the connection again after changing this field', 'info');
+        }
+
         setProviders(newProviders);
     };
 
@@ -484,6 +503,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                             <FiAlertCircle className="absolute right-3 top-3 w-4 h-4 text-red-500" />
                                                                         )}
                                                                     </div>
+                                                                    {provider.provider === 'ollama' && (
+                                                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                                                            💡 For Ollama, enter your API URL (e.g., http://localhost:11434)
+                                                                        </p>
+                                                                    )}
                                                                 </div>
 
                                                                 {/* Provider & Model */}
@@ -503,7 +527,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                             <option value="gemini">Google Gemini</option>
                                                                             <option value="mistral">Mistral AI</option>
                                                                             <option value="groq">Groq</option>
-                                                                            <option value="local">Local (Ollama)</option>
+                                                                            <option value="ollama">Ollama</option>
                                                                         </select>
                                                                     </div>
                                                                     <div>
