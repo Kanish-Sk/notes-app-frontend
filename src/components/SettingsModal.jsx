@@ -428,7 +428,9 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                             ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                                                                             : testResults[index]?.success === false
                                                                                 ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                                                : provider.is_active === false && provider.api_key.trim() && provider.model?.trim()
+                                                                                    ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 animate-pulse'
+                                                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                                             } ${(!provider.api_key.trim() || !provider.model?.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                     >
                                                                         {testingProvider === index ? (
@@ -438,6 +440,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                             </div>
                                                                         ) : testResults[index]?.success ? (
                                                                             'Verified ✓'
+                                                                        ) : provider.is_active === false && provider.api_key.trim() && provider.model?.trim() ? (
+                                                                            '⚠️ Test Required'
                                                                         ) : (
                                                                             'Test'
                                                                         )}
