@@ -206,10 +206,10 @@ const SettingsModal = ({ isOpen, onClose }) => {
         if (criticalFields.includes(field)) {
             // Clear test status for this provider
             const providerId = newProviders[index].name || `provider-${index}`;
-            setTestStatus(prev => {
-                const newStatus = { ...prev };
-                delete newStatus[providerId];
-                return newStatus;
+            setTestResults(prev => {
+                const newResults = { ...prev };
+                delete newResults[providerId];
+                return newResults;
             });
 
             // Deactivate the provider until it's tested again
