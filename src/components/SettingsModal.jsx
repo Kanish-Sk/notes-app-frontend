@@ -168,7 +168,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 api_key: '',
                 model: '',
                 use_global_prompt: true,
-                is_active: providers.length === 0
+                is_active: providers.length === 0,
+                tested: false  // New providers start untested
             }
         ]);
         setExpandedProvider(providers.length);
@@ -214,6 +215,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
             // Deactivate the provider until it's tested again
             newProviders[index].is_active = false;
+            newProviders[index].tested = false; // Clear tested status
 
             // Show toast notification
             addToast('Please test the connection again after changing this field', 'info');
@@ -261,9 +263,9 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
             if (response.data.success) {
                 addToast(response.data.message, 'success');
-                // Auto-activate provider on successful test
+                // Auto-activate provider and mark as tested on successful test
                 const newProviders = [...providers];
-                newProviders[index] = { ...newProviders[index], is_active: true };
+                newProviders[index] = { ...newProviders[index], is_active: true, tested: true };
                 setProviders(newProviders);
 
                 // Set as default if no default is set yet
@@ -424,11 +426,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                     <button
                                                                         onClick={() => handleTestConnection(index)}
                                                                         disabled={testingProvider === index || !provider.api_key.trim() || !provider.model?.trim()}
-                                                                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${testResults[index]?.success
+                                                                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${provider.tested && testResults[index]?.success
                                                                             ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                                                                             : testResults[index]?.success === false
                                                                                 ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                                                                : provider.is_active === false && provider.api_key.trim() && provider.model?.trim()
+                                                                                : !provider.tested && provider.api_key.trim() && provider.model?.trim()
                                                                                     ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 animate-pulse'
                                                                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                                             } ${(!provider.api_key.trim() || !provider.model?.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -438,9 +440,9 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                                 <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
                                                                                 Testing...
                                                                             </div>
-                                                                        ) : testResults[index]?.success ? (
+                                                                        ) : provider.tested ? (
                                                                             'Verified ✓'
-                                                                        ) : provider.is_active === false && provider.api_key.trim() && provider.model?.trim() ? (
+                                                                        ) : !provider.tested && provider.api_key.trim() && provider.model?.trim() ? (
                                                                             '⚠️ Test Required'
                                                                         ) : (
                                                                             'Test'
@@ -509,7 +511,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                                                     </div>
                                                                     {provider.provider === 'ollama' && (
                                                                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                                            💡 For Ollama, enter your API URL (e.g., http://localhost:11434)
+                                                                            💡 For Ollama: Enter base URL (e.g., http://localhost:11434 or https://your-ollama-api.com)
                                                                         </p>
                                                                     )}
                                                                 </div>
