@@ -11,10 +11,14 @@ import TaskItem from '@tiptap/extension-task-item';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Strike from '@tiptap/extension-strike';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeader from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
 import {
     FiBold, FiItalic, FiUnderline, FiCode, FiList, FiLink,
     FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
-    FiType, FiX, FiCheck, FiMinus, FiArrowDown, FiArrowUp
+    FiType, FiX, FiCheck, FiMinus, FiArrowDown, FiArrowUp, FiGrid
 } from 'react-icons/fi';
 
 // Link Modal Component
@@ -371,6 +375,13 @@ const MenuBar = ({ editor }) => {
                     >
                         <FiLink className="w-4 h-4" />
                     </ToolbarButton>
+                    <ToolbarButton
+                        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+                        isActive={editor.isActive('table')}
+                        title="Insert Table"
+                    >
+                        <FiGrid className="w-4 h-4" />
+                    </ToolbarButton>
 
                     <Divider />
 
@@ -470,6 +481,23 @@ const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Sta
                 nested: true,
                 HTMLAttributes: {
                     class: 'flex items-start gap-2',
+                },
+            }),
+            Table.configure({
+                resizable: true,
+                HTMLAttributes: {
+                    class: 'border-collapse table-auto w-full',
+                },
+            }),
+            TableRow,
+            TableHeader.configure({
+                HTMLAttributes: {
+                    class: 'border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-4 py-2 font-semibold text-left',
+                },
+            }),
+            TableCell.configure({
+                HTMLAttributes: {
+                    class: 'border border-gray-300 dark:border-gray-600 px-4 py-2',
                 },
             }),
         ],
