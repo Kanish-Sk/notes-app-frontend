@@ -21,6 +21,106 @@ import {
     FiType, FiX, FiCheck, FiMinus, FiArrowDown, FiArrowUp, FiGrid
 } from 'react-icons/fi';
 
+const TableModal = ({ isOpen, onClose, onInsert }) => {
+    const [rows, setRows] = useState(3);
+    const [cols, setCols] = useState(3);
+    const [withHeaderRow, setWithHeaderRow] = useState(true);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setRows(3);
+            setCols(3);
+            setWithHeaderRow(true);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleInsert = () => {
+        onInsert({ rows: parseInt(rows), cols: parseInt(cols), withHeaderRow });
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+            <div
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        Insert Table
+                    </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                        <FiX className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Rows
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={rows}
+                            onChange={(e) => setRows(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Columns
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={cols}
+                            onChange={(e) => setCols(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={withHeaderRow}
+                                onChange={(e) => setWithHeaderRow(e.target.checked)}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Include header row
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="flex gap-2 mt-6 justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleInsert}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center gap-2"
+                    >
+                        <FiCheck className="w-4 h-4" />
+                        Insert
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Link Modal Component
 const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initialText = '' }) => {
     const [url, setUrl] = useState(initialUrl);
@@ -125,6 +225,7 @@ const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initial
 
 const MenuBar = ({ editor }) => {
     const [linkModalOpen, setLinkModalOpen] = useState(false);
+    const [tableModalOpen, setTableModalOpen] = useState(false);
 
     if (!editor) return null;
 
@@ -164,6 +265,10 @@ const MenuBar = ({ editor }) => {
 
     const removeLink = () => {
         editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    };
+
+    const insertTable = (options) => {
+        editor.chain().focus().insertTable(options).run();
     };
 
     const ToolbarButton = ({ onClick, isActive, title, children, className = '' }) => (
@@ -376,7 +481,7 @@ const MenuBar = ({ editor }) => {
                         <FiLink className="w-4 h-4" />
                     </ToolbarButton>
                     <ToolbarButton
-                        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+                        onClick={() => setTableModalOpen(true)}
                         isActive={editor.isActive('table')}
                         title="Insert Table"
                     >
@@ -443,6 +548,11 @@ const MenuBar = ({ editor }) => {
                 onRemove={removeLink}
                 initialUrl={editor.getAttributes('link').href || ''}
                 initialText=""
+            />
+            <TableModal
+                isOpen={tableModalOpen}
+                onClose={() => setTableModalOpen(false)}
+                onInsert={insertTable}
             />
         </>
     );
