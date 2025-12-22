@@ -190,14 +190,16 @@ const AIAssistant = ({
         const userMessage = { role: 'user', content: message, timestamp: new Date() };
         const newHistory = [...chatHistory, userMessage];
         setChatHistory(newHistory);
+
+        // Clear input immediately after adding to history
+        setMessage('');
         setIsLoading(true);
 
         try {
-            const response = await onSendMessage(message, currentContent, editMode);
+            const response = await onSendMessage(userMessage.content, currentContent, editMode);
             const aiMessage = { role: 'assistant', content: response.message, timestamp: new Date() };
             const updatedHistory = [...newHistory, aiMessage];
             setChatHistory(updatedHistory);
-            setMessage('');
 
             // Auto-save chat
             await saveCurrentChat(updatedHistory, newTitle);

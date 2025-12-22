@@ -39,8 +39,13 @@ function Home() {
 
             const response = await Promise.race([apiPromise, timeoutPromise]);
             setNotes(response.data);
-            if (response.data.length > 0 && !selectedNote) {
-                setSelectedNote(response.data[0]);
+
+            // Always select the first note on load if none is selected or selected note is missing
+            if (response.data.length > 0) {
+                const currentNoteExists = response.data.find(n => n._id === selectedNote?._id);
+                if (!selectedNote || !currentNoteExists) {
+                    setSelectedNote(response.data[0]);
+                }
             }
         } catch (error) {
             console.error('Error loading notes:', error);

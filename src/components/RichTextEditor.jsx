@@ -245,8 +245,9 @@ const MenuBar = ({ editor }) => {
     );
 };
 
-const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Start writing...' }, ref) => {
+const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false }, ref) => {
     const editor = useEditor({
+        editable: !readOnly,
         extensions: [
             StarterKit,
             Underline,
@@ -275,6 +276,13 @@ const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Sta
             },
         },
     });
+
+    // Update editable state when readOnly prop changes
+    React.useEffect(() => {
+        if (editor) {
+            editor.setEditable(!readOnly);
+        }
+    }, [editor, readOnly]);
 
     // Update editor content when prop changes
     React.useEffect(() => {
@@ -329,7 +337,7 @@ const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Sta
 
     return (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-900">
-            <MenuBar editor={editor} />
+            {!readOnly && <MenuBar editor={editor} />}
             <EditorContent editor={editor} />
         </div>
     );

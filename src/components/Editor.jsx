@@ -3,8 +3,36 @@ import ReactMarkdown from 'react-markdown';
 import { FiTrash2, FiEye, FiEdit3, FiRotateCcw, FiRotateCw, FiSave } from 'react-icons/fi';
 import { useToast } from '../contexts/ToastContext';
 import RichTextEditor from './RichTextEditor';
+import { useAuth } from '../contexts/AuthContext';
 
 const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
+    const { user } = useAuth();
+
+    // Check ownership - be permissive: only set read-only if we're CERTAIN it's not owned
+    const userId = user?.id || user?._id;
+    const noteOwnerId = note?.user_id;
+
+    // Only enable read-only if:
+    // 1. We have both user and note
+    // 2. The note HAS a user_id (otherwise it's legacy/orphaned)
+    // 3. They DON'T match
+    const isReadOnly = !!(user && note && noteOwnerId && userId && noteOwnerId !== userId);
+    const isOwner = !isReadOnly;
+
+    // Debug logging (remove after testing)
+    React.useEffect(() => {
+        if (note && user) {
+            console.log('Editor Debug:', {
+                noteUserId: note.user_id,
+                userId: user.id,
+                userIdAlt: user._id,
+                isOwner,
+                isReadOnly,
+                userKeys: Object.keys(user)
+            });
+        }
+    }, [note?.user_id, user?.id, user?._id]);
+
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [showPreview, setShowPreview] = useState(false);
@@ -22,15 +50,8 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
     // Expose insertHTML method
     React.useImperativeHandle(ref, () => ({
         insertHTML: (html) => {
-            console.log('=== EDITOR COMPONENT: insertHTML called ===');
-            console.log('HTML received:', html.substring(0, 100));
-            console.log('editorRef.current exists:', !!editorRef.current);
-
             if (editorRef.current) {
-                console.log('Calling RichTextEditor.insertHTML...');
                 editorRef.current.insertHTML(html);
-            } else {
-                console.error('editorRef.current is null!');
             }
         }
     }));
@@ -73,6 +94,13 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
         }
     }, [title, content, autoSave]);
 
+    // Disable auto-save if read-only
+    useEffect(() => {
+        if (isReadOnly) {
+            setAutoSave(false);
+        }
+    }, [isReadOnly]);
+
     const handleUndo = useCallback(() => {
         if (historyIndex > 0) {
             setIsUndoRedo(true);
@@ -110,7 +138,6 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
     const confirmDelete = () => {
         onDeleteNote(note._id);
         setShowDeleteModal(false);
-        // Toast is now handled in Home.jsx
     };
 
     // Keyboard shortcuts
@@ -152,6 +179,13 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
             {/* Toolbar */}
             <div className="border-b border-gray-200 dark:border-gray-700 px-8 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                    {/* Read Only Badge */}
+                    {isReadOnly && (
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-medium rounded border border-gray-200 dark:border-gray-700">
+                            Read Only
+                        </span>
+                    )}
+
                     {/* Edit/Preview Toggle */}
                     <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                         <button
@@ -176,8 +210,8 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
                         </button>
                     </div>
 
-                    {/* Undo/Redo */}
-                    {!showPreview && (
+                    {/* Undo/Redo - Hide if read-only */}
+                    {!showPreview && !isReadOnly && (
                         <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-3 ml-1">
                             <button
                                 onClick={handleUndo}
@@ -201,41 +235,46 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
 
                 {/* Right side controls */}
                 <div className="flex items-center gap-3">
-                    {/* Auto-save toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input
-                            type="checkbox"
-                            checked={autoSave}
-                            onChange={(e) => setAutoSave(e.target.checked)}
-                            className="w-4 h-4 rounded accent-purple-500"
-                        />
-                        <span className="text-gray-600 dark:text-gray-400">Auto-save</span>
-                    </label>
+                    {/* Only show Save/Delete if owner */}
+                    {isOwner && (
+                        <>
+                            {/* Auto-save toggle */}
+                            <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={autoSave}
+                                    onChange={(e) => setAutoSave(e.target.checked)}
+                                    className="w-4 h-4 rounded accent-purple-500"
+                                />
+                                <span className="text-gray-600 dark:text-gray-400">Auto-save</span>
+                            </label>
 
-                    {/* Manual Save Button */}
-                    {!autoSave && (
-                        <button
-                            onClick={handleManualSave}
-                            disabled={!unsavedChanges}
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${unsavedChanges
-                                ? 'bg-purple-500 text-white hover:bg-purple-600'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                                }`}
-                            title="Save (Cmd/Ctrl + S)"
-                        >
-                            <FiSave className="inline w-4 h-4 mr-1.5" />
-                            Save
-                        </button>
+                            {/* Manual Save Button */}
+                            {!autoSave && (
+                                <button
+                                    onClick={handleManualSave}
+                                    disabled={!unsavedChanges}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${unsavedChanges
+                                        ? 'bg-purple-500 text-white hover:bg-purple-600'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                                        }`}
+                                    title="Save (Cmd/Ctrl + S)"
+                                >
+                                    <FiSave className="inline w-4 h-4 mr-1.5" />
+                                    Save
+                                </button>
+                            )}
+
+                            {/* Delete Button */}
+                            <button
+                                onClick={handleDeleteClick}
+                                className="px-3 py-1.5 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border border-red-200 dark:border-red-800"
+                            >
+                                <FiTrash2 className="inline w-4 h-4 mr-1.5" />
+                                Delete
+                            </button>
+                        </>
                     )}
-
-                    {/* Delete Button */}
-                    <button
-                        onClick={handleDeleteClick}
-                        className="px-3 py-1.5 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border border-red-200 dark:border-red-800"
-                    >
-                        <FiTrash2 className="inline w-4 h-4 mr-1.5" />
-                        Delete
-                    </button>
                 </div>
             </div>
 
@@ -255,14 +294,18 @@ const Editor = React.forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Untitled"
-                            className="w-full text-4xl font-bold mb-6 outline-none border-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                            disabled={isReadOnly}
+                            className={`w-full text-4xl font-bold mb-6 outline-none border-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${isReadOnly ? 'cursor-default' : ''}`}
                         />
-                        <RichTextEditor
-                            ref={editorRef}
-                            content={content}
-                            onChange={setContent}
-                            placeholder="Start writing..."
-                        />
+                        <div className={isReadOnly ? 'pointer-events-none' : ''}>
+                            <RichTextEditor
+                                ref={editorRef}
+                                content={content}
+                                onChange={setContent}
+                                placeholder="Start writing..."
+                                readOnly={isReadOnly}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

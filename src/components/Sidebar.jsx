@@ -228,14 +228,14 @@ const Sidebar = ({
     };
 
     // Build folder tree for rendering
-    const buildFolderTree = () => {
+    const buildFolderTree = (foldersToUse) => {
         const map = {};
         const roots = [];
-        folders.forEach((f) => {
+        foldersToUse.forEach((f) => {
             const id = f._id || f.id;
             map[id] = { ...f, children: [] };
         });
-        folders.forEach((f) => {
+        foldersToUse.forEach((f) => {
             const id = f._id || f.id;
             if (f.parent_id && map[f.parent_id]) {
                 map[f.parent_id].children.push(map[id]);
@@ -246,7 +246,13 @@ const Sidebar = ({
         return roots;
     };
 
-    const folderTree = buildFolderTree();
+    // Separate owned and shared folders
+    const ownedFolders = folders.filter(f => !f.is_shared);
+    const sharedFolders = folders.filter(f => f.is_shared);
+
+    const ownedFolderTree = buildFolderTree(ownedFolders);
+    const sharedFolderTree = buildFolderTree(sharedFolders);
+
     const getNotesForFolder = (folderId) => notes.filter((n) => n.folder_id === folderId);
     const rootNotes = getNotesForFolder(null);
 
@@ -295,73 +301,170 @@ const Sidebar = ({
                     if (empty) setSelectedFolder(null);
                 }}
             >
-                {/* Folders */}
-                {folderTree.map((folder) => (
-                    <FolderNode
-                        key={folder._id || folder.id}
-                        folder={folder}
-                        level={0}
-                        expandedFolders={expandedFolders}
-                        selectedFolder={selectedFolder}
-                        editingId={editingId}
-                        editingName={editingName}
-                        dragOverItem={dragOverItem}
-                        setEditingName={setEditingName}
-                        editInputRef={editInputRef}
-                        notes={notes}
-                        selectedNote={selectedNote}
-                        onToggle={toggleFolder}
-                        onSelect={setSelectedFolder}
-                        onSelectNote={onSelectNote}
-                        onContextMenu={handleContextMenu}
-                        onSave={saveEditing}
-                        onCancel={cancelEditing}
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                        onDragOver={onDragOver}
-                        onDragEnter={onDragEnter}
-                        onDragLeave={onDragLeave}
-                        onDrop={onDrop}
-                        onShareNote={handleShare}
-                        handleShare={handleShare}
-                        startEditing={startEditing}
-                        openDeleteModal={openDeleteModal}
-                        setNoteToDelete={setNoteToDelete}
-                        setDeleteNoteModalOpen={setDeleteNoteModalOpen}
-                    />
-                ))}
-                {/* Root notes */}
-                <div className="mt-4">
-                    <h2 className="px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Notes</h2>
-                    {rootNotes.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No notes yet. Create one!</div>
-                    ) : (
-                        <div className="space-y-1">
-                            {rootNotes.map((note) => (
-                                <NoteItem
-                                    key={note._id}
-                                    note={note}
-                                    level={0}
-                                    selectedNote={selectedNote}
-                                    editingId={editingId}
-                                    editingName={editingName}
-                                    setEditingName={setEditingName}
-                                    editInputRef={editInputRef}
-                                    onSelect={onSelectNote}
-                                    onContextMenu={handleContextMenu}
-                                    onSave={saveEditing}
-                                    onCancel={cancelEditing}
-                                    onDragStart={onDragStart}
-                                    onDragEnd={onDragEnd}
-                                    onShare={handleShare}
-                                    startEditing={startEditing}
-                                    setNoteToDelete={setNoteToDelete}
-                                    setDeleteNoteModalOpen={setDeleteNoteModalOpen}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {/* My Folders Section */}
+                {ownedFolderTree.length > 0 && (
+                    <div>
+                        <h2 className="px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">My Folders</h2>
+                        {ownedFolderTree.map((folder) => (
+                            <FolderNode
+                                key={folder._id || folder.id}
+                                folder={folder}
+                                level={0}
+                                expandedFolders={expandedFolders}
+                                selectedFolder={selectedFolder}
+                                editingId={editingId}
+                                editingName={editingName}
+                                dragOverItem={dragOverItem}
+                                setEditingName={setEditingName}
+                                editInputRef={editInputRef}
+                                notes={notes}
+                                selectedNote={selectedNote}
+                                onToggle={toggleFolder}
+                                onSelect={setSelectedFolder}
+                                onSelectNote={onSelectNote}
+                                onContextMenu={handleContextMenu}
+                                onSave={saveEditing}
+                                onCancel={cancelEditing}
+                                onDragStart={onDragStart}
+                                onDragEnd={onDragEnd}
+                                onDragOver={onDragOver}
+                                onDragEnter={onDragEnter}
+                                onDragLeave={onDragLeave}
+                                onDrop={onDrop}
+                                onShareNote={handleShare}
+                                handleShare={handleShare}
+                                startEditing={startEditing}
+                                openDeleteModal={openDeleteModal}
+                                setNoteToDelete={setNoteToDelete}
+                                setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                                authUser={user}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Shared Folders Section */}
+                {sharedFolderTree.length > 0 && (
+                    <div className="mt-4">
+                        <h2 className="px-2 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase mb-1 flex items-center gap-1">
+                            <FiShare2 className="w-3 h-3" />
+                            Shared Folders ({sharedFolderTree.length})
+                        </h2>
+                        {sharedFolderTree.map((folder) => (
+                            <FolderNode
+                                key={folder._id || folder.id}
+                                folder={folder}
+                                level={0}
+                                expandedFolders={expandedFolders}
+                                selectedFolder={selectedFolder}
+                                editingId={editingId}
+                                editingName={editingName}
+                                dragOverItem={dragOverItem}
+                                setEditingName={setEditingName}
+                                editInputRef={editInputRef}
+                                notes={notes}
+                                selectedNote={selectedNote}
+                                onToggle={toggleFolder}
+                                onSelect={setSelectedFolder}
+                                onSelectNote={onSelectNote}
+                                onContextMenu={handleContextMenu}
+                                onSave={saveEditing}
+                                onCancel={cancelEditing}
+                                onDragStart={onDragStart}
+                                onDragEnd={onDragEnd}
+                                onDragOver={onDragOver}
+                                onDragEnter={onDragEnter}
+                                onDragLeave={onDragLeave}
+                                onDrop={onDrop}
+                                onShareNote={handleShare}
+                                handleShare={handleShare}
+                                startEditing={startEditing}
+                                openDeleteModal={openDeleteModal}
+                                setNoteToDelete={setNoteToDelete}
+                                setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                                authUser={user}
+                            />
+                        ))}
+                    </div>
+                )}
+                {/* Root notes - separate owned and shared */}
+                {(() => {
+                    const myRootNotes = rootNotes.filter(n => !n.is_shared);
+                    const sharedNotes = notes.filter(n => n.is_shared);
+
+                    return (
+                        <>
+                            {/* My Notes Section */}
+                            <div className="mt-4">
+                                <h2 className="px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">My Notes</h2>
+                                {myRootNotes.length === 0 ? (
+                                    <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No notes yet. Create one!</div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {myRootNotes.map((note) => (
+                                            <NoteItem
+                                                key={note._id}
+                                                note={note}
+                                                level={0}
+                                                selectedNote={selectedNote}
+                                                editingId={editingId}
+                                                editingName={editingName}
+                                                setEditingName={setEditingName}
+                                                editInputRef={editInputRef}
+                                                onSelect={onSelectNote}
+                                                onContextMenu={handleContextMenu}
+                                                onSave={saveEditing}
+                                                onCancel={cancelEditing}
+                                                onDragStart={onDragStart}
+                                                onDragEnd={onDragEnd}
+                                                onShare={handleShare}
+                                                startEditing={startEditing}
+                                                setNoteToDelete={setNoteToDelete}
+                                                setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                                                authUser={user}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Shared with me Section */}
+                            {sharedNotes.length > 0 && (
+                                <div className="mt-4">
+                                    <h2 className="px-2 text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase mb-1 flex items-center gap-1">
+                                        <FiShare2 className="w-3 h-3" />
+                                        Shared with me ({sharedNotes.length})
+                                    </h2>
+                                    <div className="space-y-1">
+                                        {sharedNotes.map((note) => (
+                                            <NoteItem
+                                                key={note._id}
+                                                note={note}
+                                                level={0}
+                                                selectedNote={selectedNote}
+                                                editingId={editingId}
+                                                editingName={editingName}
+                                                setEditingName={setEditingName}
+                                                editInputRef={editInputRef}
+                                                onSelect={onSelectNote}
+                                                onContextMenu={handleContextMenu}
+                                                onSave={saveEditing}
+                                                onCancel={cancelEditing}
+                                                onDragStart={onDragStart}
+                                                onDragEnd={onDragEnd}
+                                                onShare={handleShare}
+                                                startEditing={startEditing}
+                                                setNoteToDelete={setNoteToDelete}
+                                                setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                                                authUser={user}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
             {/* Footer – User Profile, Theme & Logout */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
@@ -496,7 +599,8 @@ const FolderNode = ({
     startEditing,
     openDeleteModal,
     setNoteToDelete,
-    setDeleteNoteModalOpen
+    setDeleteNoteModalOpen,
+    authUser // Current logged-in user
 }) => {
     const folderId = folder._id || folder.id;
     const isExpanded = expandedFolders.has(folderId);
@@ -564,18 +668,23 @@ const FolderNode = ({
                     </div>
                 ) : (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); startEditing(folder, 'folder'); }} className="p-1 text-gray-500 hover:text-indigo-600">
-                            <FiEdit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleShare(folder, 'folder'); }} className="p-1 text-gray-500 hover:text-purple-600">
-                            <FiShare2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); openDeleteModal(folder); }} className="p-1 text-gray-500 hover:text-red-600">
-                            <FiTrash2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); onSelect(folder); }} className="p-1 text-gray-500 hover:text-green-600">
-                            <FiPlus className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Only show edit/delete/share/add if user owns the folder (or if we can't determine ownership) */}
+                        {(!folder.user_id || !authUser || folder.user_id === (authUser.id || authUser._id)) && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); startEditing(folder, 'folder'); }} className="p-1 text-gray-500 hover:text-indigo-600">
+                                    <FiEdit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleShare(folder, 'folder'); }} className="p-1 text-gray-500 hover:text-purple-600">
+                                    <FiShare2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); openDeleteModal(folder); }} className="p-1 text-gray-500 hover:text-red-600">
+                                    <FiTrash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); onSelect(folder); }} className="p-1 text-gray-500 hover:text-green-600">
+                                    <FiPlus className="w-3.5 h-3.5" />
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
             </div>
@@ -614,6 +723,7 @@ const FolderNode = ({
                             openDeleteModal={openDeleteModal}
                             setNoteToDelete={setNoteToDelete}
                             setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                            authUser={authUser}
                         />
                     ))}
                     {/* Notes inside this folder */}
@@ -637,6 +747,7 @@ const FolderNode = ({
                             startEditing={startEditing}
                             setNoteToDelete={setNoteToDelete}
                             setDeleteNoteModalOpen={setDeleteNoteModalOpen}
+                            authUser={authUser}
                         />
                     ))}
                 </div>
@@ -645,7 +756,7 @@ const FolderNode = ({
     );
 };
 
-// Note item component with share button
+// Note item component with share button and shared indicator
 const NoteItem = ({
     note,
     level,
@@ -663,22 +774,39 @@ const NoteItem = ({
     onShare,
     startEditing,
     setNoteToDelete,
-    setDeleteNoteModalOpen
+    setDeleteNoteModalOpen,
+    authUser  // Current logged-in user
 }) => {
     const isEditing = editingId === `note-${note._id}`;
     const isSelected = selectedNote?._id === note._id;
+    const isSharedWithMe = note.is_shared === true;
+    const isOwner = !note.user_id || !authUser || note.user_id === (authUser.id || authUser._id);
 
     return (
         <div
-            draggable={!isEditing}
-            onDragStart={(e) => onDragStart(e, note, 'note')}
+            draggable={!isEditing && !isSharedWithMe}
+            onDragStart={(e) => !isSharedWithMe && onDragStart(e, note, 'note')}
             onDragEnd={onDragEnd}
             onContextMenu={(e) => onContextMenu(e, note, 'note')}
             onClick={() => !isEditing && onSelect(note)}
-            className={`flex items-center py-1 px-2 cursor-pointer group ${isSelected ? 'bg-gray-200 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+            className={`flex items-center py-1.5 px-2 cursor-pointer group rounded-md transition-colors ${isSelected
+                ? isSharedWithMe
+                    ? 'bg-purple-100 dark:bg-purple-900/30'
+                    : 'bg-gray-200 dark:bg-gray-700'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
             style={{ paddingLeft: `${level * 12 + 24}px` }}
         >
-            <FiFileText className="w-4 h-4 mr-2 text-gray-500" />
+            {/* Icon - different for shared notes */}
+            {isSharedWithMe ? (
+                <div className="relative mr-2">
+                    <FiFileText className="w-4 h-4 text-purple-500" />
+                    <FiShare2 className="w-2.5 h-2.5 text-purple-600 absolute -bottom-0.5 -right-0.5" />
+                </div>
+            ) : (
+                <FiFileText className="w-4 h-4 mr-2 text-gray-500" />
+            )}
+
             {isEditing ? (
                 <input
                     ref={editInputRef}
@@ -691,8 +819,18 @@ const NoteItem = ({
                     className="flex-1 px-1 py-0.5 text-sm bg-white dark:bg-gray-600 border border-indigo-500 rounded outline-none"
                 />
             ) : (
-                <span className="flex-1 truncate">{note.title || 'Untitled'}</span>
+                <div className="flex-1 min-w-0">
+                    <span className={`block truncate ${isSharedWithMe ? 'text-purple-700 dark:text-purple-300' : ''}`}>
+                        {note.title || 'Untitled'}
+                    </span>
+                    {isSharedWithMe && note.shared_by && (
+                        <span className="text-[10px] text-purple-500 dark:text-purple-400 truncate block">
+                            Shared by {note.shared_by_name || note.shared_by.split('@')[0]}
+                        </span>
+                    )}
+                </div>
             )}
+
             <div className="flex items-center gap-1 ml-2">
                 {isEditing ? (
                     <>
@@ -705,15 +843,20 @@ const NoteItem = ({
                     </>
                 ) : (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); startEditing(note, 'note'); }} className="text-gray-500 hover:text-indigo-600">
-                            <FiEdit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setNoteToDelete(note); setDeleteNoteModalOpen(true); }} className="text-gray-500 hover:text-red-600">
-                            <FiTrash2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); onShare(note); }} className="text-gray-500 hover:text-purple-600">
-                            <FiShare2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Only show edit/delete/share if user owns the note */}
+                        {isOwner && !isSharedWithMe && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); startEditing(note, 'note'); }} className="text-gray-500 hover:text-indigo-600">
+                                    <FiEdit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setNoteToDelete(note); setDeleteNoteModalOpen(true); }} className="text-gray-500 hover:text-red-600">
+                                    <FiTrash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); onShare(note); }} className="text-gray-500 hover:text-purple-600">
+                                    <FiShare2 className="w-3.5 h-3.5" />
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
             </div>

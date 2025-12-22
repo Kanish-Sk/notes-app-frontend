@@ -47,6 +47,12 @@ export const notesAPI = {
         api.delete(`/notes/${id}`, { headers: createAuthHeaders(token) }),
     shareNote: (id, data, token) =>
         api.post(`/notes/${id}/share`, data, { headers: createAuthHeaders(token) }),
+    getShares: (id, token) =>
+        api.get(`/notes/${id}/shares`, { headers: createAuthHeaders(token) }),
+    resendShareNotification: (noteId, email, token) =>
+        api.post(`/notes/${noteId}/shares/${encodeURIComponent(email)}/resend`, {}, { headers: createAuthHeaders(token) }),
+    unshareNote: (noteId, email, token) =>
+        api.delete(`/notes/${noteId}/shares/${encodeURIComponent(email)}`, { headers: createAuthHeaders(token) }),
 };
 
 export const chatsAPI = {
@@ -108,6 +114,12 @@ export const foldersAPI = {
         api.post(`/folders/${id}/share`, data, {
             headers: createAuthHeaders(token),
         }),
+    getShares: (id, token) =>
+        api.get(`/folders/${id}/shares`, { headers: createAuthHeaders(token) }),
+    resendShareNotification: (folderId, email, token) =>
+        api.post(`/folders/${folderId}/shares/${encodeURIComponent(email)}/resend`, {}, { headers: createAuthHeaders(token) }),
+    unshareFolder: (folderId, email, token) =>
+        api.delete(`/folders/${folderId}/shares/${encodeURIComponent(email)}`, { headers: createAuthHeaders(token) }),
 };
 
 // MongoDB API
