@@ -390,7 +390,8 @@ const Sidebar = ({
                 {/* Root notes - separate owned and shared */}
                 {(() => {
                     const myRootNotes = rootNotes.filter(n => !n.is_shared);
-                    const sharedNotes = notes.filter(n => n.is_shared);
+                    // Only show shared notes that are NOT in folders (to avoid duplication)
+                    const sharedNotes = notes.filter(n => n.is_shared && !n.folder_id);
 
                     return (
                         <>
