@@ -3,8 +3,6 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
@@ -42,13 +40,6 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
                         return `Heading ${node.attrs.level}`;
                     }
                     return "Type '/' for commands...";
-                },
-            }),
-            Underline,
-            Link.configure({
-                openOnClick: true,
-                HTMLAttributes: {
-                    class: 'text-blue-500 hover:text-blue-600 underline cursor-pointer',
                 },
             }),
             TextStyle,
