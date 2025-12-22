@@ -18,22 +18,28 @@ import {
 } from 'react-icons/fi';
 
 // Link Modal Component
-const LinkModal = ({ isOpen, onClose, onSave, initialUrl = '' }) => {
+const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initialText = '' }) => {
     const [url, setUrl] = useState(initialUrl);
-    const [text, setText] = useState('');
+    const [text, setText] = useState(initialText);
 
     React.useEffect(() => {
         if (isOpen) {
             setUrl(initialUrl);
+            setText(initialText);
         }
-    }, [isOpen, initialUrl]);
+    }, [isOpen, initialUrl, initialText]);
 
     if (!isOpen) return null;
 
     const handleSave = () => {
         if (url.trim()) {
-            onSave(url.trim());
+            onSave(url.trim(), text.trim());
         }
+        onClose();
+    };
+
+    const handleRemove = () => {
+        onRemove();
         onClose();
     };
 
@@ -58,6 +64,18 @@ const LinkModal = ({ isOpen, onClose, onSave, initialUrl = '' }) => {
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Link Text
+                        </label>
+                        <input
+                            type="text"
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            placeholder="Enter link text (optional)"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             URL
                         </label>
                         <input
@@ -71,20 +89,30 @@ const LinkModal = ({ isOpen, onClose, onSave, initialUrl = '' }) => {
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center gap-2"
-                    >
-                        <FiCheck className="w-4 h-4" />
-                        Save
-                    </button>
+                <div className="flex justify-between mt-6">
+                    {initialUrl && (
+                        <button
+                            onClick={handleRemove}
+                            className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
+                        >
+                            Remove Link
+                        </button>
+                    )}
+                    <div className="flex gap-2 ml-auto">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center gap-2"
+                        >
+                            <FiCheck className="w-4 h-4" />
+                            Save
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -97,17 +125,41 @@ const MenuBar = ({ editor }) => {
     if (!editor) return null;
 
     const addLink = () => {
-        const previousUrl = editor.getAttributes('link').href;
+        // If already a link, remove it on first click
+        if (editor.isActive('link')) {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+
+        const { selection } = editor.state;
+        const selectedText = editor.state.doc.textBetween(selection.from, selection.to, '');
         setLinkModalOpen(true);
     };
 
-    const saveLink = (url) => {
+    const saveLink = (url, linkText) => {
         if (url === '') {
             editor.chain().focus().extendMarkRange('link').unsetLink().run();
             return;
         }
 
-        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+        // If link text is provided and there's a selection, replace the selection
+        if (linkText) {
+            editor.chain()
+                .focus()
+                .insertContent({
+                    type: 'text',
+                    text: linkText,
+                    marks: [{ type: 'link', attrs: { href: url } }]
+                })
+                .run();
+        } else {
+            // Just add link to current selection
+            editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+        }
+    };
+
+    const removeLink = () => {
+        editor.chain().focus().extendMarkRange('link').unsetLink().run();
     };
 
     const ToolbarButton = ({ onClick, isActive, title, children, className = '' }) => (
@@ -377,7 +429,9 @@ const MenuBar = ({ editor }) => {
                 isOpen={linkModalOpen}
                 onClose={() => setLinkModalOpen(false)}
                 onSave={saveLink}
+                onRemove={removeLink}
                 initialUrl={editor.getAttributes('link').href || ''}
+                initialText=""
             />
         </>
     );
