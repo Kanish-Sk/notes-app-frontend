@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -9,11 +8,7 @@ import Highlight from '@tiptap/extension-highlight';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
-import {
-    FiBold, FiItalic, FiUnderline, FiCode, FiLink,
-    FiMoreHorizontal, FiType, FiAlignLeft, FiList,
-    FiCheckSquare, FiImage, FiTrash2
-} from 'react-icons/fi';
+import { FiTrash2 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 
 const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
@@ -215,61 +210,6 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
 
                 {/* Content Editor */}
                 <div className="relative">
-                    {editor && !isReadOnly && (
-                        <BubbleMenu
-                            editor={editor}
-                            tippyOptions={{ duration: 100 }}
-                            className="flex items-center gap-1 bg-gray-900 dark:bg-gray-800 text-white rounded-lg shadow-xl p-1 border border-gray-700"
-                        >
-                            <button
-                                onClick={() => editor.chain().focus().toggleBold().run()}
-                                className={`p-2 rounded hover:bg-gray-700 transition-colors ${editor.isActive('bold') ? 'bg-gray-700' : ''
-                                    }`}
-                                title="Bold"
-                            >
-                                <FiBold className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => editor.chain().focus().toggleItalic().run()}
-                                className={`p-2 rounded hover:bg-gray-700 transition-colors ${editor.isActive('italic') ? 'bg-gray-700' : ''
-                                    }`}
-                                title="Italic"
-                            >
-                                <FiItalic className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                                className={`p-2 rounded hover:bg-gray-700 transition-colors ${editor.isActive('underline') ? 'bg-gray-700' : ''
-                                    }`}
-                                title="Underline"
-                            >
-                                <FiUnderline className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => editor.chain().focus().toggleCode().run()}
-                                className={`p-2 rounded hover:bg-gray-700 transition-colors ${editor.isActive('code') ? 'bg-gray-700' : ''
-                                    }`}
-                                title="Code"
-                            >
-                                <FiCode className="w-4 h-4" />
-                            </button>
-                            <div className="w-px h-6 bg-gray-700 mx-1" />
-                            <button
-                                onClick={() => {
-                                    const url = window.prompt('Enter URL:');
-                                    if (url) {
-                                        editor.chain().focus().setLink({ href: url }).run();
-                                    }
-                                }}
-                                className={`p-2 rounded hover:bg-gray-700 transition-colors ${editor.isActive('link') ? 'bg-gray-700' : ''
-                                    }`}
-                                title="Link"
-                            >
-                                <FiLink className="w-4 h-4" />
-                            </button>
-                        </BubbleMenu>
-                    )}
-
                     <EditorContent editor={editor} />
                 </div>
 
