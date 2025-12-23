@@ -18,7 +18,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import {
     FiBold, FiItalic, FiUnderline, FiCode, FiLink,
     FiList, FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
-    FiX, FiMinus, FiGrid, FiPlus, FiRotateCcw, FiRotateCw
+    FiX, FiMinus, FiGrid, FiPlus, FiRotateCcw, FiRotateCw, FiMessageSquare
 } from 'react-icons/fi';
 import { MdStrikethroughS, MdSubscript, MdSuperscript } from 'react-icons/md';
 import { HiOutlineColorSwatch } from 'react-icons/hi';
@@ -236,7 +236,7 @@ const MenuButton = ({ onClick, active, disabled, title, children }) => (
 );
 
 // Floating Menu Component
-const FloatingMenu = ({ editor, onLinkClick }) => {
+const FloatingMenu = ({ editor, onLinkClick, onAskAI }) => {
     const [show, setShow] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const menuRef = useRef(null);
@@ -256,7 +256,7 @@ const FloatingMenu = ({ editor, onLinkClick }) => {
                     const rect = range.getBoundingClientRect();
 
                     setPosition({
-                        top: rect.top - 50, // Position above selection
+                        top: rect.top - 55, // Position closer above selection
                         left: rect.left + (rect.width / 2), // Center horizontally
                     });
                     setShow(true);
@@ -280,68 +280,37 @@ const FloatingMenu = ({ editor, onLinkClick }) => {
     return (
         <div
             ref={menuRef}
-            className="fixed z-50 bg-white dark:bg-gray-800 shadow-2xl rounded-lg border border-gray-200 dark:border-gray-700 p-1 flex items-center gap-1"
+            className="fixed z-50 backdrop-blur-sm bg-white/95 dark:bg-gray-900/95 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
                 transform: 'translateX(-50%)',
             }}
         >
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                active={editor.isActive('bold')}
-                title="Bold (Cmd+B)"
-            >
-                <FiBold className="w-4 h-4" />
-            </MenuButton>
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                active={editor.isActive('italic')}
-                title="Italic (Cmd+I)"
-            >
-                <FiItalic className="w-4 h-4" />
-            </MenuButton>
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                active={editor.isActive('underline')}
-                title="Underline (Cmd+U)"
-            >
-                <FiUnderline className="w-4 h-4" />
-            </MenuButton>
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-                active={editor.isActive('strike')}
-                title="Strikethrough"
-            >
-                <MdStrikethroughS className="w-4 h-4" />
-            </MenuButton>
-            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-            <MenuButton
-                onClick={onLinkClick}
-                active={editor.isActive('link')}
-                title="Link"
-            >
-                <FiLink className="w-4 h-4" />
-            </MenuButton>
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleHighlight().run()}
-                active={editor.isActive('highlight')}
-                title="Highlight"
-            >
-                <HiOutlineColorSwatch className="w-4 h-4" />
-            </MenuButton>
-            <MenuButton
-                onClick={() => editor.chain().focus().toggleCode().run()}
-                active={editor.isActive('code')}
-                title="Inline Code"
-            >
-                <FiCode className="w-4 h-4" />
-            </MenuButton>
+            {onAskAI && (
+                <button
+                    onClick={() => {
+                        const { from, to } = editor.state.selection;
+                        // Use '\n\n' as separator to preserve line breaks between blocks
+                        const selectedText = editor.state.doc.textBetween(from, to, '\n\n');
+                        if (selectedText && onAskAI) {
+                            onAskAI(selectedText);
+                        }
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors rounded-md m-1"
+                    title="Ask AI about this selection"
+                >
+                    <div className="w-5 h-5 rounded bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                        <FiMessageSquare className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="font-medium">Ask AI</span>
+                </button>
+            )}
         </div>
     );
 };
 
-const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false }, ref) => {
+const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false, onAskAI }, ref) => {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showTableModal, setShowTableModal] = useState(false);
     const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false);
@@ -452,9 +421,8 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
     useImperativeHandle(ref, () => ({
         insertHTML: (html) => {
             if (editor) {
-                const { from } = editor.state.selection;
-                editor.chain().focus().setContent(editor.getHTML() + html).run();
-                editor.commands.focus('end');
+                // Insert at current cursor position, not at the end
+                editor.chain().focus().insertContent(html).run();
             }
         },
     }));
@@ -741,6 +709,21 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                     style={resizeEnabled ? { maxWidth: `${editorWidth}px` } : { width: '100%' }}
                 >
                     <EditorContent editor={editor} className="h-full" />
+
+                    {/* Floating selection menu */}
+                    {!readOnly && (
+                        <FloatingMenu
+                            editor={editor}
+                            onLinkClick={() => {
+                                const { from, to } = editor.state.selection;
+                                const text = editor.state.doc.textBetween(from, to, ' ');
+                                const url = editor.getAttributes('link').href || '';
+                                setLinkData({ url, text });
+                                setShowLinkModal(true);
+                            }}
+                            onAskAI={onAskAI}
+                        />
+                    )}
 
                     {/* Resize Handle - Only show when resize is enabled */}
                     {!readOnly && resizeEnabled && (

@@ -31,7 +31,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     );
 };
 
-const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser }, ref) => {
+const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser, onAskAI }, ref) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -49,7 +49,7 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser
             setTitle(note.title || '');
             setContent(note.content || '');
         }
-    }, [note?._id]);
+    }, [note?._id, note?.content]);
 
     const handleTitleChange = async (e) => {
         const newTitle = e.target.value;
@@ -176,6 +176,7 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser
                         onChange={handleContentChange}
                         placeholder="Start writing..."
                         readOnly={isReadOnly}
+                        onAskAI={onAskAI}
                     />
                 </div>
             </div>

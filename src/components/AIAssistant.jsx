@@ -20,7 +20,8 @@ const AIAssistant = ({
     setIsSidebarMode,
     width,
     setWidth,
-    settingsUpdateTrigger
+    settingsUpdateTrigger,
+    prefillMessage
 }) => {
     const [message, setMessage] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
@@ -73,6 +74,41 @@ const AIAssistant = ({
     useEffect(() => {
         scrollToBottom();
     }, [chatHistory, isLoading, isSidebarMode]);
+
+    // Handle prefilled message from "Ask AI" button
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        if (prefillMessage) {
+            setMessage(prefillMessage);
+            // Double requestAnimationFrame ensures both state update AND DOM render complete
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (textareaRef.current) {
+                        const el = textareaRef.current;
+                        // Reset to auto to get proper scrollHeight
+                        el.style.height = 'auto';
+                        el.style.height = '44px';
+                        const scrollHeight = el.scrollHeight;
+                        const maxHeight = 140;
+                        const newHeight = Math.min(Math.max(scrollHeight, 44), maxHeight);
+                        el.style.height = newHeight + 'px';
+
+                        console.log('Textarea resize:', { scrollHeight, newHeight, contentLength: prefillMessage.length });
+
+                        // Focus textarea and move cursor to end
+                        el.focus();
+                        el.selectionStart = el.selectionEnd = prefillMessage.length;
+
+                        // Scroll to bottom if content exceeds max height
+                        if (scrollHeight > maxHeight) {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    }
+                });
+            });
+        }
+    }, [prefillMessage]);
 
     const checkProviders = async () => {
         setIsChecking(true);
@@ -195,10 +231,27 @@ const AIAssistant = ({
 
         // Clear input immediately after adding to history
         setMessage('');
+        // Reset textarea height to 1 line
+        if (textareaRef.current) {
+            textareaRef.current.style.height = '44px';
+        }
         setIsLoading(true);
 
         try {
+            console.log('========= SENDING AI MESSAGE =========');
+            console.log('Edit Mode:', editMode);
+            console.log('Current Content:', currentContent?.substring(0, 200));
+            console.log('Message:', message);
+
             const response = await onSendMessage(userMessage.content, currentContent, editMode);
+
+            console.log('========= AI RESPONSE =========');
+            console.log('Response:', response);
+            console.log('Has updated_content:', !!response.updated_content);
+            if (response.updated_content) {
+                console.log('Updated Content Preview:', response.updated_content.substring(0, 200));
+            }
+
             const aiMessage = { role: 'assistant', content: response.message, timestamp: new Date() };
             const updatedHistory = [...newHistory, aiMessage];
             setChatHistory(updatedHistory);
@@ -419,17 +472,6 @@ const AIAssistant = ({
                                         New Chat
                                     </button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={editMode}
-                                            onChange={(e) => setEditMode(e.target.checked)}
-                                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                                        />
-                                        Edit Mode
-                                    </label>
-                                </div>
                             </div>
 
                         </div>
@@ -500,11 +542,27 @@ const AIAssistant = ({
                                                                         {children}
                                                                     </h3>
                                                                 ),
-                                                                p: ({ children }) => (
-                                                                    <p className="my-3 leading-7 text-gray-800 dark:text-gray-200">
-                                                                        {children}
-                                                                    </p>
-                                                                ),
+                                                                p: ({ children, node }) => {
+                                                                    // Check if paragraph contains a code block
+                                                                    const hasCodeBlock = node?.children?.some(
+                                                                        child => child.tagName === 'code' && child.properties?.className?.includes('language-')
+                                                                    );
+
+                                                                    // Use div for paragraphs with code blocks to avoid nesting issues
+                                                                    if (hasCodeBlock) {
+                                                                        return (
+                                                                            <div className="my-3 leading-7 text-gray-800 dark:text-gray-200">
+                                                                                {children}
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <p className="my-3 leading-7 text-gray-800 dark:text-gray-200">
+                                                                            {children}
+                                                                        </p>
+                                                                    );
+                                                                },
                                                                 ul: ({ children }) => (
                                                                     <ul className="my-3 list-disc pl-6 space-y-1">
                                                                         {children}
@@ -615,8 +673,18 @@ const AIAssistant = ({
                             )}
                             <div className="relative">
                                 <textarea
+                                    ref={textareaRef}
                                     value={message}
-                                    onChange={(e) => setMessage(e.target.value)}
+                                    onChange={(e) => {
+                                        setMessage(e.target.value);
+                                        // Auto-resize on change
+                                        const el = e.target;
+                                        el.style.height = '0px'; // Reset to 0 first
+                                        el.style.height = '44px'; // Then set to min height
+                                        const scrollHeight = el.scrollHeight;
+                                        const maxHeight = 140; // ~5 lines
+                                        el.style.height = Math.min(Math.max(scrollHeight, 44), maxHeight) + 'px';
+                                    }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -624,9 +692,9 @@ const AIAssistant = ({
                                         }
                                     }}
                                     placeholder="Type a message..."
-                                    className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-gray-900 border-0 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 resize-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                                    className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-gray-900 border-0 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 resize-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition-none overflow-y-auto"
                                     rows="1"
-                                    style={{ minHeight: '44px', maxHeight: '120px' }}
+                                    style={{ minHeight: '44px', maxHeight: '140px', lineHeight: '24px' }}
                                 />
                                 <button
                                     onClick={handleSend}

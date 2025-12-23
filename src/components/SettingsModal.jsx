@@ -90,6 +90,22 @@ const SettingsModal = ({ isOpen, onClose }) => {
             if (response.data) {
                 if (response.data.providers) {
                     setProviders(response.data.providers);
+                    // Auto-expand first provider if any exist
+                    if (response.data.providers.length > 0 && expandedProvider === null) {
+                        setExpandedProvider(0);
+                    }
+
+                    // Restore test results from providers
+                    const restoredTestResults = {};
+                    response.data.providers.forEach((provider, index) => {
+                        if (provider.tested) {
+                            restoredTestResults[index] = {
+                                success: true,
+                                message: '✅ Previously verified'
+                            };
+                        }
+                    });
+                    setTestResults(restoredTestResults);
                 }
                 if (response.data.default_model) {
                     setDefaultModel(response.data.default_model);

@@ -20,6 +20,7 @@ function Home() {
     const [settingsUpdateTrigger, setSettingsUpdateTrigger] = useState(0);
     const [showMongoModal, setShowMongoModal] = useState(false);
     const [pendingNoteCreation, setPendingNoteCreation] = useState(null);
+    const [askAIText, setAskAIText] = useState(null);
 
     const { accessToken, user, updateUser } = useAuth();
     const { addToast } = useToast();
@@ -121,9 +122,44 @@ function Home() {
 
     const handleAIMessage = async (message, currentContent, editMode) => {
         try {
-            const response = await aiAPI.chat(message, currentContent, editMode, accessToken);
+            console.log('=== AI MESSAGE ===');
+            console.log('Edit Mode:', editMode);
+            console.log('Current Content Length:', currentContent?.length || 0);
+            console.log('Selected Note ID:', selectedNote?._id);
+            console.log('Has selection:', !!selectedTextInfo);
+
+            // If editing a selection, prepend instruction to only edit that part
+            let finalMessage = message;
+            if (editMode && selectedTextInfo && selectedTextInfo.text) {
+                finalMessage = `IMPORTANT INSTRUCTIONS:
+1. You are ONLY editing this selected portion (do NOT return the entire document):
+
+---SELECTED TEXT TO EDIT---
+${selectedTextInfo.text}
+---END OF SELECTION---
+
+2. User's modification request: ${message}
+
+3. Your response should ONLY contain:
+   - A brief acknowledgment (e.g., "I've updated the selected text to be more professional")
+   - ONLY the edited portion (the modified version of the selected text above)
+   
+DO NOT include the rest of the document. ONLY return the edited selection.`;
+                console.log('Sending selective edit instruction');
+            }
+
+            const response = await aiAPI.chat(finalMessage, currentContent, editMode, accessToken);
+            console.log('AI Response:', response.data);
 
             if (editMode && response.data.updated_content && selectedNote) {
+                // IMPORTANT: If there's a selection, don't auto-update the document
+                // The matching is too unreliable - user should use Insert button instead  
+                if (selectedTextInfo && selectedTextInfo.text) {
+                    console.log('=== SELECTION IN EDIT MODE: Not auto-updating (use Insert button) ===');
+                    setSelectedTextInfo(null);
+                    return response.data;
+                }
+
                 console.log('=== EDIT MODE: Converting markdown to HTML ===');
                 console.log('Received markdown:', response.data.updated_content.substring(0, 200));
 
@@ -136,12 +172,124 @@ function Home() {
                     mangle: false
                 });
 
-                const htmlContent = marked.parse(response.data.updated_content);
-                console.log('Converted to HTML:', htmlContent.substring(0, 200));
 
-                await handleUpdateNote(selectedNote._id, {
-                    content: htmlContent,  // Save as HTML, not markdown
-                });
+
+                // Check if we're editing a selection or the entire document
+                if (selectedTextInfo && selectedTextInfo.text) {
+                    console.log('=== SELECTIVE EDIT: Replacing selected portion ===');
+                    console.log('Selected text:', selectedTextInfo.text.substring(0, 100));
+                    console.log('Current content length:', currentContent.length);
+                    console.log('AI response:', response.data.updated_content.substring(0, 300));
+
+                    // The AI response might include an acknowledgment + the edited text
+                    // Try to extract just the edited portion
+                    let editedText = response.data.updated_content;
+
+                    // Remove common acknowledgment patterns
+                    const ackPatterns = [
+                        /^I've updated.*?\n+/i,
+                        /^Updated.*?\n+/i,
+                        /^Here's the updated.*?\n+/i,
+                        /^I've made.*?\n+/i,
+                        /^Done\.?\n+/i
+                    ];
+
+                    for (const pattern of ackPatterns) {
+                        editedText = editedText.replace(pattern, '');
+                    }
+
+                    console.log('Extracted edited text:', editedText.substring(0, 200));
+
+                    // Convert selected text to HTML for matching
+                    const selectedHtml = marked.parse(selectedTextInfo.text);
+                    console.log('Selected HTML:', selectedHtml.substring(0, 200));
+
+                    const htmlContent = marked.parse(editedText);
+                    console.log('AI generated HTML:', htmlContent.substring(0, 200));
+
+                    // Replace only the selected portion in the current content
+                    let updatedContent;
+
+                    // Strategy 1: Try exact HTML match
+                    if (currentContent.includes(selectedHtml.trim())) {
+                        console.log('✅ Found exact HTML match');
+                        updatedContent = currentContent.replace(selectedHtml.trim(), htmlContent.trim());
+                    }
+                    // Strategy 2: Try exact text match
+                    else if (currentContent.includes(selectedTextInfo.text)) {
+                        console.log('✅ Found exact text match, replacing with HTML');
+                        updatedContent = currentContent.replace(selectedTextInfo.text, htmlContent.trim());
+                    }
+                    // Strategy 3: Extract core text and find first occurrence
+                    else {
+                        console.log('⚠️ Trying fuzzy match (structure changed)');
+
+                        // Get first meaningful line of selected text (without HTML tags)
+                        const selectedTextClean = selectedTextInfo.text.trim().split('\n')[0].substring(0, 50);
+                        console.log('Searching for:', selectedTextClean);
+
+                        // Find where the selectedHtml appears in the current content
+                        const selectionIndex = currentContent.indexOf(selectedHtml.trim());
+
+                        if (selectionIndex !== -1) {
+                            console.log('✅ Found position in document, replacing');
+                            const before = currentContent.substring(0, selectionIndex);
+                            const after = currentContent.substring(selectionIndex + selectedHtml.trim().length);
+                            updatedContent = before + htmlContent.trim() + after;
+                        } else {
+                            console.warn('⚠️ Could not find selection anywhere, using full document');
+                            updatedContent = htmlContent;
+                        }
+                    }
+                    console.log('Updated content length:', updatedContent.length);
+
+                    // Update the note with selective edit
+                    await handleUpdateNote(selectedNote._id, {
+                        content: updatedContent,
+                    });
+
+                    // Update local state
+                    const updatedNoteData = {
+                        ...selectedNote,
+                        content: updatedContent
+                    };
+
+                    setSelectedNote(updatedNoteData);
+                    setNotes(prevNotes =>
+                        prevNotes.map(n =>
+                            n._id === selectedNote._id ? updatedNoteData : n
+                        )
+                    );
+
+                    // Clear selection info after edit
+                    setSelectedTextInfo(null);
+                } else {
+                    console.log('=== FULL DOCUMENT EDIT ===');
+
+                    // Parse full document response
+                    const htmlContent = marked.parse(response.data.updated_content);
+                    console.log('Converted to HTML:', htmlContent.substring(0, 200));
+
+                    // Update the note with full content
+                    await handleUpdateNote(selectedNote._id, {
+                        content: htmlContent,
+                    });
+
+                    // Update local state - both selectedNote and notes array
+                    const updatedNoteData = {
+                        ...selectedNote,
+                        content: htmlContent
+                    };
+
+                    setSelectedNote(updatedNoteData);
+                    setNotes(prevNotes =>
+                        prevNotes.map(n =>
+                            n._id === selectedNote._id ? updatedNoteData : n
+                        )
+                    );
+                }
+
+                console.log('Note updated successfully!');
             }
 
             return response.data;
@@ -149,6 +297,22 @@ function Home() {
             console.error('Error with AI chat:', error);
             throw error;
         }
+    };
+
+    // Handle Ask AI from text selection
+    const [selectedTextInfo, setSelectedTextInfo] = useState(null);
+
+    const handleAskAI = (selectedText) => {
+        console.log('Ask AI with selected text:', selectedText);
+        setAskAIText(selectedText);
+        // Store selection info for potential editing
+        setSelectedTextInfo({
+            text: selectedText,
+            timestamp: Date.now()
+        });
+        setAiOpen(true);
+        // Clear after a short delay to allow the effect to trigger
+        setTimeout(() => setAskAIText(null), 100);
     };
 
     // Direct content insertion without AI processing
@@ -299,6 +463,7 @@ function Home() {
                     onUpdateNote={handleUpdateNote}
                     onDeleteNote={handleDeleteNote}
                     currentUser={user}
+                    onAskAI={handleAskAI}
                 />
             </div>
 
@@ -326,6 +491,7 @@ function Home() {
                 width={aiSidebarWidth}
                 setWidth={setAiSidebarWidth}
                 settingsUpdateTrigger={settingsUpdateTrigger}
+                prefillMessage={askAIText}
             />
 
             {/* Settings Modal */}
