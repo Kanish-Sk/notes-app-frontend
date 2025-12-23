@@ -1,24 +1,5 @@
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import Highlight from '@tiptap/extension-highlight';
-import TextAlign from '@tiptap/extension-text-align';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import Subscript from '@tiptap/extension-subscript';
-import Superscript from '@tiptap/extension-superscript';
-import Strike from '@tiptap/extension-strike';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableHeader } from '@tiptap/extension-table-header';
-import { TableCell } from '@tiptap/extension-table-cell';
-import {
-    FiBold, FiItalic, FiUnderline, FiCode, FiLink, FiTrash2,
-    FiRotateCcw, FiRotateCw, FiPlus, FiMinus, FiGrid
-} from 'react-icons/fi';
+import { FiTrash2 } from 'react-icons/fi';
 import RichTextEditor from './RichTextEditor';
 
 const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
