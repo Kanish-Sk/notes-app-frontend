@@ -2,16 +2,47 @@ import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } f
 import { FiTrash2 } from 'react-icons/fi';
 import RichTextEditor from './RichTextEditor';
 
-const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
+// Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-96" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">{title}</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+
+                <div className="flex justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { onConfirm(); onClose(); }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser }, ref) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
     const saveTimeoutRef = useRef(null);
     const titleInputRef = useRef(null);
     const editorRef = useRef(null);
 
-    const isReadOnly = note?.is_shared && note?.original_owner_id !== note?.user_id;
+    const isReadOnly = note?.is_shared && note?.original_owner_id && currentUser?.id && note.original_owner_id !== currentUser.id;
 
     useEffect(() => {
         if (note) {
@@ -24,7 +55,7 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
         const newTitle = e.target.value;
         setTitle(newTitle);
 
-        if (isReadOnly || !note) return;
+        if (isReadOnly || !note || !autoSaveEnabled) return;
 
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
@@ -46,7 +77,7 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
     const handleContentChange = async (newContent) => {
         setContent(newContent);
 
-        if (isReadOnly || !note) return;
+        if (isReadOnly || !note || !autoSaveEnabled) return;
 
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
@@ -114,8 +145,20 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
                     )}
 
                     {!isReadOnly && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={autoSaveEnabled}
+                                onChange={(e) => setAutoSaveEnabled(e.target.checked)}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
+                            />
+                            <span className="text-xs font-medium">Auto-save</span>
+                        </label>
+                    )}
+
+                    {!isReadOnly && (
                         <button
-                            onClick={() => onDeleteNote(note._id)}
+                            onClick={() => setShowDeleteConfirm(true)}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                             title="Delete note"
                         >
@@ -136,6 +179,16 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote }, ref) => {
                     />
                 </div>
             </div>
+
+            {showDeleteConfirm && (
+                <ConfirmationModal
+                    isOpen={showDeleteConfirm}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={() => onDeleteNote(note._id)}
+                    title="Delete Note"
+                    message="Are you sure you want to delete this note? This action cannot be undone."
+                />
+            )}
         </div>
     );
 });

@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const AIAssistant = ({
     isOpen,
@@ -460,10 +462,80 @@ const AIAssistant = ({
                                                 {msg.role === 'user' ? (
                                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                                                 ) : (
-                                                    <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-purple-600 dark:prose-code:text-purple-400">
+                                                    <div className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none">
                                                         <ReactMarkdown
                                                             rehypePlugins={[rehypeRaw]}
                                                             remarkPlugins={[remarkGfm]}
+                                                            components={{
+                                                                code({ node, inline, className, children, ...props }) {
+                                                                    const match = /language-(\w+)/.exec(className || '');
+                                                                    return !inline && match ? (
+                                                                        <SyntaxHighlighter
+                                                                            style={vscDarkPlus}
+                                                                            language={match[1]}
+                                                                            PreTag="div"
+                                                                            className="rounded-lg my-4 text-sm"
+                                                                            {...props}
+                                                                        >
+                                                                            {String(children).replace(/\n$/, '')}
+                                                                        </SyntaxHighlighter>
+                                                                    ) : (
+                                                                        <code className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                                                            {children}
+                                                                        </code>
+                                                                    );
+                                                                },
+                                                                h1: ({ children }) => (
+                                                                    <h1 className="text-2xl font-bold mt-6 mb-3 text-gray-900 dark:text-white">
+                                                                        {children}
+                                                                    </h1>
+                                                                ),
+                                                                h2: ({ children }) => (
+                                                                    <h2 className="text-xl font-bold mt-5 mb-2 text-gray-900 dark:text-white">
+                                                                        {children}
+                                                                    </h2>
+                                                                ),
+                                                                h3: ({ children }) => (
+                                                                    <h3 className="text-lg font-bold mt-4 mb-2 text-gray-900 dark:text-white">
+                                                                        {children}
+                                                                    </h3>
+                                                                ),
+                                                                p: ({ children }) => (
+                                                                    <p className="my-3 leading-7 text-gray-800 dark:text-gray-200">
+                                                                        {children}
+                                                                    </p>
+                                                                ),
+                                                                ul: ({ children }) => (
+                                                                    <ul className="my-3 list-disc pl-6 space-y-1">
+                                                                        {children}
+                                                                    </ul>
+                                                                ),
+                                                                ol: ({ children }) => (
+                                                                    <ol className="my-3 list-decimal pl-6 space-y-1">
+                                                                        {children}
+                                                                    </ol>
+                                                                ),
+                                                                li: ({ children }) => (
+                                                                    <li className="leading-7 text-gray-800 dark:text-gray-200">
+                                                                        {children}
+                                                                    </li>
+                                                                ),
+                                                                strong: ({ children }) => (
+                                                                    <strong className="font-bold text-gray-900 dark:text-white">
+                                                                        {children}
+                                                                    </strong>
+                                                                ),
+                                                                a: ({ children, href }) => (
+                                                                    <a href={href} className="text-indigo-600 dark:text-indigo-400 underline font-medium hover:text-indigo-800 dark:hover:text-indigo-300" target="_blank" rel="noopener noreferrer">
+                                                                        {children}
+                                                                    </a>
+                                                                ),
+                                                                blockquote: ({ children }) => (
+                                                                    <blockquote className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-700 dark:text-gray-300 my-4">
+                                                                        {children}
+                                                                    </blockquote>
+                                                                ),
+                                                            }}
                                                         >
                                                             {msg.content}
                                                         </ReactMarkdown>

@@ -1,6 +1,5 @@
-import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useImperativeHandle, forwardRef, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -17,12 +16,43 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import {
-    FiBold, FiItalic, FiUnderline, FiCode, FiLink, FiHighlight,
+    FiBold, FiItalic, FiUnderline, FiCode, FiLink,
     FiList, FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
-    FiX, FiMinus, FiGrid, FiPlus
+    FiX, FiMinus, FiGrid, FiPlus, FiRotateCcw, FiRotateCw
 } from 'react-icons/fi';
 import { MdStrikethroughS, MdSubscript, MdSuperscript } from 'react-icons/md';
+import { HiOutlineColorSwatch } from 'react-icons/hi';
 
+// Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-96" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">{title}</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+
+                <div className="flex justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { onConfirm(); onClose(); }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Table Modal Component
 const TableModal = ({ onInsert, onClose }) => {
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
@@ -114,6 +144,7 @@ const TableModal = ({ onInsert, onClose }) => {
     );
 };
 
+// Link Modal Component
 const LinkModal = ({ url, text, onSave, onRemove, onClose }) => {
     const [linkUrl, setLinkUrl] = useState(url || '');
     const [linkText, setLinkText] = useState(text || '');
@@ -189,6 +220,7 @@ const LinkModal = ({ url, text, onSave, onRemove, onClose }) => {
     );
 };
 
+// Menu Button Component
 const MenuButton = ({ onClick, active, disabled, title, children }) => (
     <button
         onClick={onClick}
@@ -203,10 +235,157 @@ const MenuButton = ({ onClick, active, disabled, title, children }) => (
     </button>
 );
 
+// Floating Menu Component
+const FloatingMenu = ({ editor, onLinkClick }) => {
+    const [show, setShow] = useState(false);
+    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+        if (!editor) return;
+
+        const updateMenu = () => {
+            const { from, to } = editor.state.selection;
+            const hasSelection = from !== to;
+
+            if (hasSelection) {
+                // Get the selection coordinates
+                const domSelection = window.getSelection();
+                if (domSelection && domSelection.rangeCount > 0) {
+                    const range = domSelection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+
+                    setPosition({
+                        top: rect.top - 50, // Position above selection
+                        left: rect.left + (rect.width / 2), // Center horizontally
+                    });
+                    setShow(true);
+                }
+            } else {
+                setShow(false);
+            }
+        };
+
+        editor.on('selectionUpdate', updateMenu);
+        editor.on('update', updateMenu);
+
+        return () => {
+            editor.off('selectionUpdate', updateMenu);
+            editor.off('update', updateMenu);
+        };
+    }, [editor]);
+
+    if (!show || !editor) return null;
+
+    return (
+        <div
+            ref={menuRef}
+            className="fixed z-50 bg-white dark:bg-gray-800 shadow-2xl rounded-lg border border-gray-200 dark:border-gray-700 p-1 flex items-center gap-1"
+            style={{
+                top: `${position.top}px`,
+                left: `${position.left}px`,
+                transform: 'translateX(-50%)',
+            }}
+        >
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                active={editor.isActive('bold')}
+                title="Bold (Cmd+B)"
+            >
+                <FiBold className="w-4 h-4" />
+            </MenuButton>
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                active={editor.isActive('italic')}
+                title="Italic (Cmd+I)"
+            >
+                <FiItalic className="w-4 h-4" />
+            </MenuButton>
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleUnderline().run()}
+                active={editor.isActive('underline')}
+                title="Underline (Cmd+U)"
+            >
+                <FiUnderline className="w-4 h-4" />
+            </MenuButton>
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                active={editor.isActive('strike')}
+                title="Strikethrough"
+            >
+                <MdStrikethroughS className="w-4 h-4" />
+            </MenuButton>
+            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+            <MenuButton
+                onClick={onLinkClick}
+                active={editor.isActive('link')}
+                title="Link"
+            >
+                <FiLink className="w-4 h-4" />
+            </MenuButton>
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleHighlight().run()}
+                active={editor.isActive('highlight')}
+                title="Highlight"
+            >
+                <HiOutlineColorSwatch className="w-4 h-4" />
+            </MenuButton>
+            <MenuButton
+                onClick={() => editor.chain().focus().toggleCode().run()}
+                active={editor.isActive('code')}
+                title="Inline Code"
+            >
+                <FiCode className="w-4 h-4" />
+            </MenuButton>
+        </div>
+    );
+};
+
 const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false }, ref) => {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showTableModal, setShowTableModal] = useState(false);
+    const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false);
     const [linkData, setLinkData] = useState({ url: '', text: '' });
+    const [editorWidth, setEditorWidth] = useState(896); // Default max-w-4xl = 896px
+    const [isResizing, setIsResizing] = useState(false);
+    const [resizeEnabled, setResizeEnabled] = useState(false); // Resize disabled by default
+    const editorContainerRef = useRef(null);
+
+    const handleMouseDown = (e) => {
+        e.preventDefault();
+        setIsResizing(true);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!isResizing || !editorContainerRef.current) return;
+
+            const container = editorContainerRef.current;
+            const containerRect = container.getBoundingClientRect();
+            const newWidth = e.clientX - containerRect.left;
+
+            // Min width 600px, max width is viewport width minus some padding
+            const minWidth = 600;
+            const maxWidth = window.innerWidth - containerRect.left - 50;
+            const clampedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
+
+            setEditorWidth(clampedWidth);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
 
     const editor = useEditor({
         extensions: [
@@ -214,6 +393,7 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                 heading: {
                     levels: [1, 2, 3],
                 },
+                strike: false, // We'll add it separately
             }),
             Placeholder.configure({
                 placeholder,
@@ -263,10 +443,11 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-screen p-8',
+                class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert w-full focus:outline-none min-h-screen p-8 prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4 break-words',
             },
         },
-    });
+    }, [readOnly]);
+
 
     useImperativeHandle(ref, () => ({
         insertHTML: (html) => {
@@ -277,6 +458,20 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
             }
         },
     }));
+
+    // Update editor's editable state when readOnly changes
+    useEffect(() => {
+        if (editor) {
+            editor.setEditable(!readOnly);
+        }
+    }, [editor, readOnly]);
+
+    // Update editor content when content prop changes (e.g., when switching notes)
+    useEffect(() => {
+        if (editor && content !== editor.getHTML()) {
+            editor.commands.setContent(content);
+        }
+    }, [editor, content]);
 
     const handleLinkClick = () => {
         const { from, to } = editor.state.selection;
@@ -307,7 +502,10 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
 
     const handleTableInsert = ({ rows, cols, withHeaderRow, withHeaderColumn }) => {
         editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
-        // Note: withHeaderColumn would require custom extension or post-processing
+    };
+
+    const handleDeleteTable = () => {
+        editor.chain().focus().deleteTable().run();
     };
 
     const isInTable = editor?.isActive('table');
@@ -317,209 +515,251 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
     }
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col relative">
             {!readOnly && (
-                <>
-                    <BubbleMenu
-                        editor={editor}
-                        tippyOptions={{ duration: 100, placement: 'top' }}
-                        className="bg-white dark:bg-gray-800 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700 p-1 flex items-center gap-1"
+                <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-2 flex items-center gap-2 flex-wrap">
+                    <MenuButton
+                        onClick={() => editor.chain().focus().undo().run()}
+                        disabled={!editor.can().undo()}
+                        title="Undo (Cmd+Z)"
                     >
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleBold().run()}
-                            active={editor.isActive('bold')}
-                            title="Bold"
-                        >
-                            <FiBold className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleItalic().run()}
-                            active={editor.isActive('italic')}
-                            title="Italic"
-                        >
-                            <FiItalic className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleUnderline().run()}
-                            active={editor.isActive('underline')}
-                            title="Underline"
-                        >
-                            <FiUnderline className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleStrike().run()}
-                            active={editor.isActive('strike')}
-                            title="Strikethrough"
-                        >
-                            <MdStrikethroughS className="w-4 h-4" />
-                        </MenuButton>
-                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <MenuButton
-                            onClick={handleLinkClick}
-                            active={editor.isActive('link')}
-                            title="Link"
-                        >
-                            <FiLink className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleHighlight().run()}
-                            active={editor.isActive('highlight')}
-                            title="Highlight"
-                        >
-                            <FiHighlight className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleCode().run()}
-                            active={editor.isActive('code')}
-                            title="Code"
-                        >
-                            <FiCode className="w-4 h-4" />
-                        </MenuButton>
-                    </BubbleMenu>
-
-                    {isInTable && (
-                        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-2 flex items-center gap-2 shadow-sm">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
-                                Table:
-                            </span>
-                            <MenuButton
-                                onClick={() => editor.chain().focus().addRowBefore().run()}
-                                title="Add row above"
-                            >
-                                <FiPlus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Row Above</span>
-                            </MenuButton>
-                            <MenuButton
-                                onClick={() => editor.chain().focus().addRowAfter().run()}
-                                title="Add row below"
-                            >
-                                <FiPlus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Row Below</span>
-                            </MenuButton>
-                            <MenuButton
-                                onClick={() => editor.chain().focus().deleteRow().run()}
-                                title="Delete row"
-                            >
-                                <FiMinus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Row</span>
-                            </MenuButton>
-                            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                            <MenuButton
-                                onClick={() => editor.chain().focus().addColumnBefore().run()}
-                                title="Add column left"
-                            >
-                                <FiPlus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Col Left</span>
-                            </MenuButton>
-                            <MenuButton
-                                onClick={() => editor.chain().focus().addColumnAfter().run()}
-                                title="Add column right"
-                            >
-                                <FiPlus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Col Right</span>
-                            </MenuButton>
-                            <MenuButton
-                                onClick={() => editor.chain().focus().deleteColumn().run()}
-                                title="Delete column"
-                            >
-                                <FiMinus className="w-4 h-4" />
-                                <span className="text-xs ml-1">Column</span>
-                            </MenuButton>
-                            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                            <MenuButton
-                                onClick={() => editor.chain().focus().deleteTable().run()}
-                                title="Delete table"
-                            >
-                                <FiX className="w-4 h-4" />
-                                <span className="text-xs ml-1">Table</span>
-                            </MenuButton>
-                        </div>
-                    )}
-
-                    <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 p-2 flex items-center gap-2 shadow-sm">
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                            active={editor.isActive('heading', { level: 1 })}
-                            title="Heading 1"
-                        >
-                            <span className="text-sm font-semibold">H1</span>
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                            active={editor.isActive('heading', { level: 2 })}
-                            title="Heading 2"
-                        >
-                            <span className="text-sm font-semibold">H2</span>
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                            active={editor.isActive('heading', { level: 3 })}
-                            title="Heading 3"
-                        >
-                            <span className="text-sm font-semibold">H3</span>
-                        </MenuButton>
-                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleBulletList().run()}
-                            active={editor.isActive('bulletList')}
-                            title="Bullet list"
-                        >
-                            <FiList className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                            active={editor.isActive('orderedList')}
-                            title="Numbered list"
-                        >
-                            <span className="text-sm font-semibold">1.</span>
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().toggleTaskList().run()}
-                            active={editor.isActive('taskList')}
-                            title="Task list"
-                        >
-                            <FiCheckSquare className="w-4 h-4" />
-                        </MenuButton>
-                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <MenuButton
-                            onClick={() => setShowTableModal(true)}
-                            title="Insert table"
-                        >
-                            <FiGrid className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().setHorizontalRule().run()}
-                            title="Horizontal line"
-                        >
-                            <FiMinus className="w-4 h-4" />
-                        </MenuButton>
-                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-                        <MenuButton
-                            onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                            active={editor.isActive({ textAlign: 'left' })}
-                            title="Align left"
-                        >
-                            <FiAlignLeft className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                            active={editor.isActive({ textAlign: 'center' })}
-                            title="Align center"
-                        >
-                            <FiAlignCenter className="w-4 h-4" />
-                        </MenuButton>
-                        <MenuButton
-                            onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                            active={editor.isActive({ textAlign: 'right' })}
-                            title="Align right"
-                        >
-                            <FiAlignRight className="w-4 h-4" />
-                        </MenuButton>
-                    </div>
-                </>
+                        <FiRotateCcw className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().redo().run()}
+                        disabled={!editor.can().redo()}
+                        title="Redo (Cmd+Shift+Z)"
+                    >
+                        <FiRotateCw className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleBold().run()}
+                        active={editor.isActive('bold')}
+                        title="Bold (Cmd+B)"
+                    >
+                        <FiBold className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleItalic().run()}
+                        active={editor.isActive('italic')}
+                        title="Italic (Cmd+I)"
+                    >
+                        <FiItalic className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleUnderline().run()}
+                        active={editor.isActive('underline')}
+                        title="Underline (Cmd+U)"
+                    >
+                        <FiUnderline className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleStrike().run()}
+                        active={editor.isActive('strike')}
+                        title="Strikethrough"
+                    >
+                        <MdStrikethroughS className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={handleLinkClick}
+                        active={editor.isActive('link')}
+                        title="Link"
+                    >
+                        <FiLink className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleHighlight().run()}
+                        active={editor.isActive('highlight')}
+                        title="Highlight"
+                    >
+                        <HiOutlineColorSwatch className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleCode().run()}
+                        active={editor.isActive('code')}
+                        title="Inline Code"
+                    >
+                        <FiCode className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                        active={editor.isActive('heading', { level: 1 })}
+                        title="Heading 1"
+                    >
+                        <span className="text-sm font-semibold">H1</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                        active={editor.isActive('heading', { level: 2 })}
+                        title="Heading 2"
+                    >
+                        <span className="text-sm font-semibold">H2</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                        active={editor.isActive('heading', { level: 3 })}
+                        title="Heading 3"
+                    >
+                        <span className="text-sm font-semibold">H3</span>
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleBulletList().run()}
+                        active={editor.isActive('bulletList')}
+                        title="Bullet list"
+                    >
+                        <FiList className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                        active={editor.isActive('orderedList')}
+                        title="Numbered list"
+                    >
+                        <span className="text-sm font-semibold">1.</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().toggleTaskList().run()}
+                        active={editor.isActive('taskList')}
+                        title="Task list"
+                    >
+                        <FiCheckSquare className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => setShowTableModal(true)}
+                        title="Insert table"
+                    >
+                        <FiGrid className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                        title="Horizontal line"
+                    >
+                        <FiMinus className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                        active={editor.isActive({ textAlign: 'left' })}
+                        title="Align left"
+                    >
+                        <FiAlignLeft className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                        active={editor.isActive({ textAlign: 'center' })}
+                        title="Align center"
+                    >
+                        <FiAlignCenter className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                        active={editor.isActive({ textAlign: 'right' })}
+                        title="Align right"
+                    >
+                        <FiAlignRight className="w-4 h-4" />
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => setResizeEnabled(!resizeEnabled)}
+                        active={resizeEnabled}
+                        title={resizeEnabled ? "Disable resize" : "Enable resize"}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                        </svg>
+                    </MenuButton>
+                </div>
             )}
 
-            <EditorContent editor={editor} className="flex-1 overflow-auto" />
+            {!readOnly && isInTable && (
+                <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-2 flex items-center gap-2 shadow-sm">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+                        Table:
+                    </span>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().addRowBefore().run()}
+                        title="Add row above"
+                    >
+                        <FiPlus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Row Above</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().addRowAfter().run()}
+                        title="Add row below"
+                    >
+                        <FiPlus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Row Below</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().deleteRow().run()}
+                        title="Delete row"
+                    >
+                        <FiMinus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Row</span>
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => editor.chain().focus().addColumnBefore().run()}
+                        title="Add column left"
+                    >
+                        <FiPlus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Col Left</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().addColumnAfter().run()}
+                        title="Add column right"
+                    >
+                        <FiPlus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Col Right</span>
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => editor.chain().focus().deleteColumn().run()}
+                        title="Delete column"
+                    >
+                        <FiMinus className="w-4 h-4" />
+                        <span className="text-xs ml-1">Column</span>
+                    </MenuButton>
+                    <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <MenuButton
+                        onClick={() => setShowDeleteTableConfirm(true)}
+                        title="Delete table"
+                    >
+                        <FiX className="w-4 h-4" />
+                        <span className="text-xs ml-1">Table</span>
+                    </MenuButton>
+                </div>
+            )}
+
+            <div className="flex-1 overflow-auto relative">
+                <div
+                    ref={editorContainerRef}
+                    className="relative h-full"
+                    style={resizeEnabled ? { maxWidth: `${editorWidth}px` } : { width: '100%' }}
+                >
+                    <EditorContent editor={editor} className="h-full" />
+
+                    {/* Resize Handle - Only show when resize is enabled */}
+                    {!readOnly && resizeEnabled && (
+                        <div
+                            onMouseDown={handleMouseDown}
+                            className={`absolute top-0 right-0 bottom-0 w-1 cursor-col-resize transition-all ${isResizing
+                                ? 'bg-indigo-500 shadow-lg'
+                                : 'bg-gray-300 dark:bg-gray-600 hover:bg-indigo-400'
+                                }`}
+                            title="Drag to resize editor width"
+                        >
+                            <div className={`absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-4 h-16 bg-gray-400 dark:bg-gray-500 rounded-full transition-all ${isResizing ? 'opacity-100 scale-110' : 'opacity-0 hover:opacity-100'
+                                } flex items-center justify-center shadow-md`}>
+                                <div className="w-1 h-8 bg-white dark:bg-gray-200 rounded-full"></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {showLinkModal && (
                 <LinkModal
@@ -535,6 +775,16 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                 <TableModal
                     onInsert={handleTableInsert}
                     onClose={() => setShowTableModal(false)}
+                />
+            )}
+
+            {showDeleteTableConfirm && (
+                <ConfirmationModal
+                    isOpen={showDeleteTableConfirm}
+                    onClose={() => setShowDeleteTableConfirm(false)}
+                    onConfirm={handleDeleteTable}
+                    title="Delete Table"
+                    message="Are you sure you want to delete this table? This action cannot be undone."
                 />
             )}
         </div>

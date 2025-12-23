@@ -298,6 +298,7 @@ function Home() {
                     note={selectedNote}
                     onUpdateNote={handleUpdateNote}
                     onDeleteNote={handleDeleteNote}
+                    currentUser={user}
                 />
             </div>
 

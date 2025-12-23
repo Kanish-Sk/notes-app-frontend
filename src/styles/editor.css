@@ -11,6 +11,9 @@
 /* Editor prose styling - clean and spacious */
 .ProseMirror {
     outline: none;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .ProseMirror>*+* {
@@ -91,9 +94,20 @@
     margin: 1rem 0;
 }
 
+.ProseMirror ul {
+    list-style-type: disc;
+    list-style-position: outside;
+}
+
+.ProseMirror ol {
+    list-style-type: decimal;
+    list-style-position: outside;
+}
+
 .ProseMirror li {
     margin: 0.25rem 0;
     line-height: 1.7;
+    display: list-item;
 }
 
 .ProseMirror li>p {
