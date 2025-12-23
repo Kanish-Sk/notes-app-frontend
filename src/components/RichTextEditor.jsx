@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useEditor, EditorContent, generateJSON } from '@tiptap/react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -16,52 +16,31 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import {
-    FiBold, FiItalic, FiUnderline, FiCode, FiList, FiLink,
-    FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
-    FiType, FiX, FiCheck, FiMinus, FiArrowDown, FiArrowUp, FiGrid
+    FiBold, FiItalic, FiUnderline, FiCode, FiLink, FiHighlight,
+    FiList, FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
+    FiX, FiMinus, FiGrid, FiPlus
 } from 'react-icons/fi';
+import { MdStrikethroughS, MdSubscript, MdSuperscript } from 'react-icons/md';
 
-const TableModal = ({ isOpen, onClose, onInsert }) => {
+const TableModal = ({ onInsert, onClose }) => {
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
     const [withHeaderRow, setWithHeaderRow] = useState(true);
-
-    React.useEffect(() => {
-        if (isOpen) {
-            setRows(3);
-            setCols(3);
-            setWithHeaderRow(true);
-        }
-    }, [isOpen]);
-
-    if (!isOpen) return null;
+    const [withHeaderColumn, setWithHeaderColumn] = useState(false);
 
     const handleInsert = () => {
-        onInsert({ rows: parseInt(rows), cols: parseInt(cols), withHeaderRow });
+        onInsert({ rows, cols, withHeaderRow, withHeaderColumn });
         onClose();
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-            <div
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        Insert Table
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                    >
-                        <FiX className="w-5 h-5" />
-                    </button>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-96" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Insert Table</h3>
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                             Rows
                         </label>
                         <input
@@ -69,51 +48,64 @@ const TableModal = ({ isOpen, onClose, onInsert }) => {
                             min="1"
                             max="20"
                             value={rows}
-                            onChange={(e) => setRows(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            onChange={(e) => setRows(parseInt(e.target.value) || 1)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100"
                         />
                     </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                             Columns
                         </label>
                         <input
                             type="number"
                             min="1"
-                            max="10"
+                            max="20"
                             value={cols}
-                            onChange={(e) => setCols(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            onChange={(e) => setCols(parseInt(e.target.value) || 1)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100"
                         />
                     </div>
-                    <div>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={withHeaderRow}
-                                onChange={(e) => setWithHeaderRow(e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                            />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Include header row
-                            </span>
+
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="headerRow"
+                            checked={withHeaderRow}
+                            onChange={(e) => setWithHeaderRow(e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                        <label htmlFor="headerRow" className="text-sm text-gray-700 dark:text-gray-300">
+                            Include header row
+                        </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="headerColumn"
+                            checked={withHeaderColumn}
+                            onChange={(e) => setWithHeaderColumn(e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                        <label htmlFor="headerColumn" className="text-sm text-gray-700 dark:text-gray-300">
+                            Include header column
                         </label>
                     </div>
                 </div>
 
-                <div className="flex gap-2 mt-6 justify-end">
+                <div className="flex justify-end gap-2 mt-6">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleInsert}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center gap-2"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                     >
-                        <FiCheck className="w-4 h-4" />
-                        Insert
+                        Insert Table
                     </button>
                 </div>
             </div>
@@ -121,83 +113,57 @@ const TableModal = ({ isOpen, onClose, onInsert }) => {
     );
 };
 
-// Link Modal Component
-const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initialText = '' }) => {
-    const [url, setUrl] = useState(initialUrl);
-    const [text, setText] = useState(initialText);
-
-    React.useEffect(() => {
-        if (isOpen) {
-            setUrl(initialUrl);
-            setText(initialText);
-        }
-    }, [isOpen, initialUrl, initialText]);
-
-    if (!isOpen) return null;
+const LinkModal = ({ url, text, onSave, onRemove, onClose }) => {
+    const [linkUrl, setLinkUrl] = useState(url || '');
+    const [linkText, setLinkText] = useState(text || '');
 
     const handleSave = () => {
-        if (url.trim()) {
-            onSave(url.trim(), text.trim());
+        if (linkUrl.trim()) {
+            onSave(linkUrl, linkText);
         }
-        onClose();
-    };
-
-    const handleRemove = () => {
-        onRemove();
         onClose();
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-            <div
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        Add Link
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                    >
-                        <FiX className="w-5 h-5" />
-                    </button>
-                </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-96" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                    {url ? 'Edit Link' : 'Insert Link'}
+                </h3>
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                             Link Text
                         </label>
                         <input
                             type="text"
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            placeholder="Enter link text (optional)"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            value={linkText}
+                            onChange={(e) => setLinkText(e.target.value)}
+                            placeholder="Enter link text"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100"
                         />
                     </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                             URL
                         </label>
                         <input
                             type="url"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
+                            value={linkUrl}
+                            onChange={(e) => setLinkUrl(e.target.value)}
                             placeholder="https://example.com"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            autoFocus
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100"
                         />
                     </div>
                 </div>
 
                 <div className="flex justify-between mt-6">
-                    {initialUrl && (
+                    {url && (
                         <button
-                            onClick={handleRemove}
-                            className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
+                            onClick={() => { onRemove(); onClose(); }}
+                            className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         >
                             Remove Link
                         </button>
@@ -205,16 +171,15 @@ const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initial
                     <div className="flex gap-2 ml-auto">
                         <button
                             onClick={onClose}
-                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleSave}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center gap-2"
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                         >
-                            <FiCheck className="w-4 h-4" />
-                            Save
+                            {url ? 'Update' : 'Insert'}
                         </button>
                     </div>
                 </div>
@@ -223,361 +188,41 @@ const LinkModal = ({ isOpen, onClose, onSave, onRemove, initialUrl = '', initial
     );
 };
 
-const MenuBar = ({ editor }) => {
-    const [linkModalOpen, setLinkModalOpen] = useState(false);
-    const [tableModalOpen, setTableModalOpen] = useState(false);
+const MenuButton = ({ onClick, active, disabled, title, children }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        className={`p-2 rounded-lg transition-all ${active
+                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+        {children}
+    </button>
+);
 
-    if (!editor) return null;
+const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false }, ref) => {
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [showTableModal, setShowTableModal] = useState(false);
+    const [linkData, setLinkData] = useState({ url: '', text: '' });
 
-    const addLink = () => {
-        // If already a link, remove it on first click
-        if (editor.isActive('link')) {
-            editor.chain().focus().extendMarkRange('link').unsetLink().run();
-            return;
-        }
-
-        const { selection } = editor.state;
-        const selectedText = editor.state.doc.textBetween(selection.from, selection.to, '');
-        setLinkModalOpen(true);
-    };
-
-    const saveLink = (url, linkText) => {
-        if (url === '') {
-            editor.chain().focus().extendMarkRange('link').unsetLink().run();
-            return;
-        }
-
-        // If link text is provided and there's a selection, replace the selection
-        if (linkText) {
-            editor.chain()
-                .focus()
-                .insertContent({
-                    type: 'text',
-                    text: linkText,
-                    marks: [{ type: 'link', attrs: { href: url } }]
-                })
-                .run();
-        } else {
-            // Just add link to current selection
-            editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-        }
-    };
-
-    const removeLink = () => {
-        editor.chain().focus().extendMarkRange('link').unsetLink().run();
-    };
-
-    const insertTable = (options) => {
-        editor.chain().focus().insertTable(options).run();
-    };
-
-    const ToolbarButton = ({ onClick, isActive, title, children, className = '' }) => (
-        <button
-            type="button"
-            onClick={onClick}
-            onMouseDown={(e) => e.preventDefault()}
-            className={`
-                p-2 rounded-md transition-all duration-150
-                ${isActive
-                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }
-                ${className}
-            `}
-            title={title}
-        >
-            {children}
-        </button>
-    );
-
-    const Divider = () => (
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-    );
-
-    return (
-        <>
-            <div className="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/95 backdrop-blur-sm">
-                <div className="flex items-center gap-1 p-2 flex-wrap">
-                    {/* Text Style Dropdown */}
-                    <select
-                        onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === 'paragraph') {
-                                editor.chain().focus().setParagraph().run();
-                            } else {
-                                const level = parseInt(value);
-                                editor.chain().focus().toggleHeading({ level }).run();
-                            }
-                        }}
-                        value={
-                            editor.isActive('heading', { level: 1 }) ? '1' :
-                                editor.isActive('heading', { level: 2 }) ? '2' :
-                                    editor.isActive('heading', { level: 3 }) ? '3' :
-                                        'paragraph'
-                        }
-                        className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="paragraph">Paragraph</option>
-                        <option value="1">Heading 1</option>
-                        <option value="2">Heading 2</option>
-                        <option value="3">Heading 3</option>
-                    </select>
-
-                    <Divider />
-
-                    {/* Heading Quick Buttons */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                        isActive={editor.isActive('heading', { level: 1 })}
-                        title="Heading 1"
-                    >
-                        <span className="text-sm font-bold">H1</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                        isActive={editor.isActive('heading', { level: 2 })}
-                        title="Heading 2"
-                    >
-                        <span className="text-sm font-bold">H2</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                        isActive={editor.isActive('heading', { level: 3 })}
-                        title="Heading 3"
-                    >
-                        <span className="text-sm font-bold">H3</span>
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Text Formatting */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleBold().run()}
-                        isActive={editor.isActive('bold')}
-                        title="Bold (Ctrl+B)"
-                    >
-                        <FiBold className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleItalic().run()}
-                        isActive={editor.isActive('italic')}
-                        title="Italic (Ctrl+I)"
-                    >
-                        <FiItalic className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleUnderline().run()}
-                        isActive={editor.isActive('underline')}
-                        title="Underline (Ctrl+U)"
-                    >
-                        <FiUnderline className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleStrike().run()}
-                        isActive={editor.isActive('strike')}
-                        title="Strikethrough"
-                    >
-                        <span className="text-sm font-bold line-through">S</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleCode().run()}
-                        isActive={editor.isActive('code')}
-                        title="Inline Code"
-                    >
-                        <FiCode className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Subscript & Superscript */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleSubscript().run()}
-                        isActive={editor.isActive('subscript')}
-                        title="Subscript"
-                    >
-                        <span className="text-xs">X<sub>2</sub></span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleSuperscript().run()}
-                        isActive={editor.isActive('superscript')}
-                        title="Superscript"
-                    >
-                        <span className="text-xs">X<sup>2</sup></span>
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Lists */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleBulletList().run()}
-                        isActive={editor.isActive('bulletList')}
-                        title="Bullet List"
-                    >
-                        <FiList className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                        isActive={editor.isActive('orderedList')}
-                        title="Numbered List"
-                    >
-                        <span className="text-sm font-semibold">1.</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleTaskList().run()}
-                        isActive={editor.isActive('taskList')}
-                        title="Task List"
-                    >
-                        <FiCheckSquare className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Alignment */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                        isActive={editor.isActive({ textAlign: 'left' })}
-                        title="Align Left"
-                    >
-                        <FiAlignLeft className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                        isActive={editor.isActive({ textAlign: 'center' })}
-                        title="Align Center"
-                    >
-                        <FiAlignCenter className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                        isActive={editor.isActive({ textAlign: 'right' })}
-                        title="Align Right"
-                    >
-                        <FiAlignRight className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Blocks */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                        isActive={editor.isActive('codeBlock')}
-                        title="Code Block"
-                        className="hidden sm:inline-flex"
-                    >
-                        <span className="text-xs font-mono font-bold">{`</>`}</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                        isActive={editor.isActive('blockquote')}
-                        title="Quote"
-                    >
-                        <span className="text-lg font-bold">"</span>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={addLink}
-                        isActive={editor.isActive('link')}
-                        title="Add Link"
-                    >
-                        <FiLink className="w-4 h-4" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => setTableModalOpen(true)}
-                        isActive={editor.isActive('table')}
-                        title="Insert Table"
-                    >
-                        <FiGrid className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Highlight */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleHighlight().run()}
-                        isActive={editor.isActive('highlight')}
-                        title="Highlight"
-                    >
-                        <span className="inline-block px-1 bg-yellow-300 dark:bg-yellow-600 text-gray-900 text-xs rounded font-semibold">A</span>
-                    </ToolbarButton>
-
-                    {/* Horizontal Rule */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-                        isActive={false}
-                        title="Horizontal Rule"
-                        className="hidden sm:inline-flex"
-                    >
-                        <FiMinus className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    <Divider />
-
-                    {/* Clear Formatting */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-                        isActive={false}
-                        title="Clear Formatting"
-                        className="hidden lg:inline-flex"
-                    >
-                        <FiType className="w-4 h-4" />
-                    </ToolbarButton>
-
-                    {/* Undo/Redo */}
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().undo().run()}
-                        isActive={false}
-                        title="Undo (Ctrl+Z)"
-                        className="hidden md:inline-flex"
-                    >
-                        <FiArrowDown className="w-4 h-4 transform rotate-90" />
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().redo().run()}
-                        isActive={false}
-                        title="Redo (Ctrl+Y)"
-                        className="hidden md:inline-flex"
-                    >
-                        <FiArrowUp className="w-4 h-4 transform rotate-90" />
-                    </ToolbarButton>
-                </div>
-            </div>
-
-            <LinkModal
-                isOpen={linkModalOpen}
-                onClose={() => setLinkModalOpen(false)}
-                onSave={saveLink}
-                onRemove={removeLink}
-                initialUrl={editor.getAttributes('link').href || ''}
-                initialText=""
-            />
-            <TableModal
-                isOpen={tableModalOpen}
-                onClose={() => setTableModalOpen(false)}
-                onInsert={insertTable}
-            />
-        </>
-    );
-};
-
-const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false }, ref) => {
     const editor = useEditor({
-        editable: !readOnly,
         extensions: [
             StarterKit.configure({
                 heading: {
                     levels: [1, 2, 3],
                 },
             }),
-            Underline,
-            Strike,
-            Subscript,
-            Superscript,
             Placeholder.configure({
                 placeholder,
             }),
+            Underline,
+            Strike,
             Link.configure({
-                openOnClick: true,
+                openOnClick: false,
                 HTMLAttributes: {
-                    class: 'text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-700 dark:hover:text-indigo-300 cursor-pointer',
+                    class: 'text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-800 dark:hover:text-indigo-300',
                 },
             }),
             Highlight.configure({
@@ -589,87 +234,308 @@ const RichTextEditor = React.forwardRef(({ content, onChange, placeholder = 'Sta
             TaskList,
             TaskItem.configure({
                 nested: true,
-                HTMLAttributes: {
-                    class: 'flex items-start gap-2',
-                },
             }),
+            Subscript,
+            Superscript,
             Table.configure({
                 resizable: true,
                 HTMLAttributes: {
-                    class: 'border-collapse table-auto w-full',
+                    class: 'border-collapse table-auto w-full my-4',
                 },
             }),
             TableRow,
             TableHeader.configure({
                 HTMLAttributes: {
-                    class: 'border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-4 py-2 font-semibold text-left',
+                    class: 'border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 p-2 font-semibold',
                 },
             }),
             TableCell.configure({
                 HTMLAttributes: {
-                    class: 'border border-gray-300 dark:border-gray-600 px-4 py-2',
+                    class: 'border border-gray-300 dark:border-gray-600 p-2',
                 },
             }),
         ],
         content,
+        editable: !readOnly,
         onUpdate: ({ editor }) => {
             onChange(editor.getHTML());
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[500px] p-6 bg-white dark:bg-gray-900',
+                class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-screen p-8',
             },
         },
     });
 
-    // Update editable state when readOnly prop changes
-    React.useEffect(() => {
-        if (editor) {
-            editor.setEditable(!readOnly);
-        }
-    }, [editor, readOnly]);
-
-    // Update editor content when prop changes
-    React.useEffect(() => {
-        if (editor && content !== editor.getHTML()) {
-            editor.commands.setContent(content);
-        }
-    }, [content, editor]);
-
-    // Expose editor instance via ref
-    React.useImperativeHandle(ref, () => ({
+    useImperativeHandle(ref, () => ({
         insertHTML: (html) => {
             if (editor) {
-                try {
-                    const extensions = [
-                        StarterKit,
-                        Underline,
-                        Strike,
-                        Subscript,
-                        Superscript,
-                        Link,
-                        Highlight,
-                        TextAlign,
-                        TaskList,
-                        TaskItem,
-                    ];
-
-                    const jsonContent = generateJSON(html, extensions);
-                    editor.chain().focus().insertContent(jsonContent).run();
-                } catch (error) {
-                    console.error('Insert failed:', error);
-                }
+                const { from } = editor.state.selection;
+                editor.chain().focus().setContent(editor.getHTML() + html).run();
+                editor.commands.focus('end');
             }
         },
-        getEditor: () => editor
     }));
 
+    const handleLinkClick = () => {
+        const { from, to } = editor.state.selection;
+        const selectedText = editor.state.doc.textBetween(from, to, ' ');
+        const href = editor.getAttributes('link').href;
+
+        if (href) {
+            setLinkData({ url: href, text: selectedText });
+        } else {
+            setLinkData({ url: '', text: selectedText });
+        }
+        setShowLinkModal(true);
+    };
+
+    const handleLinkSave = (url, text) => {
+        if (text && text !== editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')) {
+            editor.chain().focus().insertContent(text).run();
+            const newTo = editor.state.selection.from + text.length;
+            editor.chain().setTextSelection({ from: editor.state.selection.from, to: newTo }).setLink({ href: url }).run();
+        } else {
+            editor.chain().focus().setLink({ href: url }).run();
+        }
+    };
+
+    const handleLinkRemove = () => {
+        editor.chain().focus().unsetLink().run();
+    };
+
+    const handleTableInsert = ({ rows, cols, withHeaderRow, withHeaderColumn }) => {
+        editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+        // Note: withHeaderColumn would require custom extension or post-processing
+    };
+
+    const isInTable = editor?.isActive('table');
+
+    if (!editor) {
+        return null;
+    }
+
     return (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-            {!readOnly && <MenuBar editor={editor} />}
-            <div className="overflow-y-auto max-h-[calc(100vh-300px)]">
-                <EditorContent editor={editor} />
-            </div>
+        <div className="h-full flex flex-col">
+            {!readOnly && (
+                <>
+                    <BubbleMenu
+                        editor={editor}
+                        tippyOptions={{ duration: 100, placement: 'top' }}
+                        className="bg-white dark:bg-gray-800 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700 p-1 flex items-center gap-1"
+                    >
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleBold().run()}
+                            active={editor.isActive('bold')}
+                            title="Bold"
+                        >
+                            <FiBold className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleItalic().run()}
+                            active={editor.isActive('italic')}
+                            title="Italic"
+                        >
+                            <FiItalic className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleUnderline().run()}
+                            active={editor.isActive('underline')}
+                            title="Underline"
+                        >
+                            <FiUnderline className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleStrike().run()}
+                            active={editor.isActive('strike')}
+                            title="Strikethrough"
+                        >
+                            <MdStrikethroughS className="w-4 h-4" />
+                        </MenuButton>
+                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                        <MenuButton
+                            onClick={handleLinkClick}
+                            active={editor.isActive('link')}
+                            title="Link"
+                        >
+                            <FiLink className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleHighlight().run()}
+                            active={editor.isActive('highlight')}
+                            title="Highlight"
+                        >
+                            <FiHighlight className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleCode().run()}
+                            active={editor.isActive('code')}
+                            title="Code"
+                        >
+                            <FiCode className="w-4 h-4" />
+                        </MenuButton>
+                    </BubbleMenu>
+
+                    {isInTable && (
+                        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-2 flex items-center gap-2 shadow-sm">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+                                Table:
+                            </span>
+                            <MenuButton
+                                onClick={() => editor.chain().focus().addRowBefore().run()}
+                                title="Add row above"
+                            >
+                                <FiPlus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Row Above</span>
+                            </MenuButton>
+                            <MenuButton
+                                onClick={() => editor.chain().focus().addRowAfter().run()}
+                                title="Add row below"
+                            >
+                                <FiPlus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Row Below</span>
+                            </MenuButton>
+                            <MenuButton
+                                onClick={() => editor.chain().focus().deleteRow().run()}
+                                title="Delete row"
+                            >
+                                <FiMinus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Row</span>
+                            </MenuButton>
+                            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                            <MenuButton
+                                onClick={() => editor.chain().focus().addColumnBefore().run()}
+                                title="Add column left"
+                            >
+                                <FiPlus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Col Left</span>
+                            </MenuButton>
+                            <MenuButton
+                                onClick={() => editor.chain().focus().addColumnAfter().run()}
+                                title="Add column right"
+                            >
+                                <FiPlus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Col Right</span>
+                            </MenuButton>
+                            <MenuButton
+                                onClick={() => editor.chain().focus().deleteColumn().run()}
+                                title="Delete column"
+                            >
+                                <FiMinus className="w-4 h-4" />
+                                <span className="text-xs ml-1">Column</span>
+                            </MenuButton>
+                            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                            <MenuButton
+                                onClick={() => editor.chain().focus().deleteTable().run()}
+                                title="Delete table"
+                            >
+                                <FiX className="w-4 h-4" />
+                                <span className="text-xs ml-1">Table</span>
+                            </MenuButton>
+                        </div>
+                    )}
+
+                    <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 p-2 flex items-center gap-2 shadow-sm">
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                            active={editor.isActive('heading', { level: 1 })}
+                            title="Heading 1"
+                        >
+                            <span className="text-sm font-semibold">H1</span>
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                            active={editor.isActive('heading', { level: 2 })}
+                            title="Heading 2"
+                        >
+                            <span className="text-sm font-semibold">H2</span>
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                            active={editor.isActive('heading', { level: 3 })}
+                            title="Heading 3"
+                        >
+                            <span className="text-sm font-semibold">H3</span>
+                        </MenuButton>
+                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleBulletList().run()}
+                            active={editor.isActive('bulletList')}
+                            title="Bullet list"
+                        >
+                            <FiList className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                            active={editor.isActive('orderedList')}
+                            title="Numbered list"
+                        >
+                            <span className="text-sm font-semibold">1.</span>
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().toggleTaskList().run()}
+                            active={editor.isActive('taskList')}
+                            title="Task list"
+                        >
+                            <FiCheckSquare className="w-4 h-4" />
+                        </MenuButton>
+                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                        <MenuButton
+                            onClick={() => setShowTableModal(true)}
+                            title="Insert table"
+                        >
+                            <FiGrid className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                            title="Horizontal line"
+                        >
+                            <FiMinus className="w-4 h-4" />
+                        </MenuButton>
+                        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                        <MenuButton
+                            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                            active={editor.isActive({ textAlign: 'left' })}
+                            title="Align left"
+                        >
+                            <FiAlignLeft className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                            active={editor.isActive({ textAlign: 'center' })}
+                            title="Align center"
+                        >
+                            <FiAlignCenter className="w-4 h-4" />
+                        </MenuButton>
+                        <MenuButton
+                            onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                            active={editor.isActive({ textAlign: 'right' })}
+                            title="Align right"
+                        >
+                            <FiAlignRight className="w-4 h-4" />
+                        </MenuButton>
+                    </div>
+                </>
+            )}
+
+            <EditorContent editor={editor} className="flex-1 overflow-auto" />
+
+            {showLinkModal && (
+                <LinkModal
+                    url={linkData.url}
+                    text={linkData.text}
+                    onSave={handleLinkSave}
+                    onRemove={handleLinkRemove}
+                    onClose={() => setShowLinkModal(false)}
+                />
+            )}
+
+            {showTableModal && (
+                <TableModal
+                    onInsert={handleTableInsert}
+                    onClose={() => setShowTableModal(false)}
+                />
+            )}
         </div>
     );
 });
