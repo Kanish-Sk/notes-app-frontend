@@ -11,6 +11,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Strike from '@tiptap/extension-strike';
+import Image from '@tiptap/extension-image';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -18,10 +19,13 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import {
     FiBold, FiItalic, FiUnderline, FiCode, FiLink,
     FiList, FiCheckSquare, FiAlignLeft, FiAlignCenter, FiAlignRight,
-    FiX, FiMinus, FiGrid, FiPlus, FiRotateCcw, FiRotateCw, FiMessageSquare
+    FiX, FiMinus, FiGrid, FiPlus, FiRotateCcw, FiRotateCw, FiMessageSquare, FiImage, FiTrash2
 } from 'react-icons/fi';
 import { MdStrikethroughS, MdSubscript, MdSuperscript } from 'react-icons/md';
 import { HiOutlineColorSwatch } from 'react-icons/hi';
+import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
 
 // Confirmation Modal Component
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
@@ -56,11 +60,12 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
 const TableModal = ({ onInsert, onClose }) => {
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
+    const [tableName, setTableName] = useState('');
     const [withHeaderRow, setWithHeaderRow] = useState(true);
     const [withHeaderColumn, setWithHeaderColumn] = useState(false);
 
     const handleInsert = () => {
-        onInsert({ rows, cols, withHeaderRow, withHeaderColumn });
+        onInsert({ rows, cols, tableName, withHeaderRow, withHeaderColumn });
         onClose();
     };
 
@@ -70,6 +75,23 @@ const TableModal = ({ onInsert, onClose }) => {
                 <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Insert Table</h3>
 
                 <div className="space-y-4">
+                    {/* Table Name */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                            Table Name (optional)
+                        </label>
+                        <input
+                            type="text"
+                            value={tableName}
+                            onChange={(e) => setTableName(e.target.value)}
+                            placeholder="e.g., Quarterly Results, Feature Comparison"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Add a caption to describe your table
+                        </p>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                             Rows
@@ -220,6 +242,179 @@ const LinkModal = ({ url, text, onSave, onRemove, onClose }) => {
     );
 };
 
+// Image Modal Component
+const ImageModal = ({ onInsert, onClose, onConfigureCloudinary, cloudinaryConfig }) => {
+    const { addToast } = useToast();
+    const [file, setFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [preview, setPreview] = useState(null);
+    const [altText, setAltText] = useState('');
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            // Validate file type
+            if (!selectedFile.type.startsWith('image/')) {
+                addToast('Please select an image file', 'error');
+                return;
+            }
+
+            // Validate file size (max 10MB)
+            if (selectedFile.size > 10 * 1024 * 1024) {
+                addToast('File size must be less than 10MB', 'error');
+                return;
+            }
+
+            setFile(selectedFile);
+            // Create preview
+            const reader = new FileReader();
+            reader.onload = (e) => setPreview(e.target.result);
+            reader.readAsDataURL(selectedFile);
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!file) return;
+
+        // Check if Cloudinary is configured
+        if (!cloudinaryConfig?.cloudinary_cloud_name || !cloudinaryConfig?.cloudinary_api_key) {
+            if (window.confirm('Cloudinary is not configured. Would you like to configure it now?')) {
+                onConfigureCloudinary();
+            }
+            return;
+        }
+
+        setUploading(true);
+
+        try {
+            // Upload to Cloudinary
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', 'unsigned'); // You'll need to create this in Cloudinary
+
+            // Alternative: Use signed upload with user's credentials
+            const cloudName = cloudinaryConfig.cloudinary_cloud_name;
+            const timestamp = Math.floor(Date.now() / 1000);
+            const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+            // For unsigned upload (simpler, but requires unsigned preset in Cloudinary)
+            // Users need to create an "unsigned" upload preset in their Cloudinary dashboard
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+
+            const data = await response.json();
+            const imageUrl = data.secure_url;
+
+            // Insert image into editor
+            onInsert(imageUrl, altText || file.name);
+            onClose();
+        } catch (error) {
+            console.error('Image upload error:', error);
+            addToast('Failed to upload image. Please make sure you have created an "unsigned" upload preset in your Cloudinary dashboard settings.', 'error');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-96 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                    Insert Image
+                </h3>
+
+                <div className="space-y-4">
+                    {/* File input */}
+                    <div>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors flex flex-col items-center justify-center gap-2 text-gray-600 dark:text-gray-400"
+                        >
+                            <FiImage className="w-8 h-8" />
+                            <span>{file ? file.name : 'Click to select image'}</span>
+                            <span className="text-xs">Max size: 10MB</span>
+                        </button>
+                    </div>
+
+                    {/* Preview */}
+                    {preview && (
+                        <div className="relative">
+                            <img
+                                src={preview}
+                                alt="Preview"
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700"
+                            />
+                        </div>
+                    )}
+
+                    {/* Alt text */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                            Alt Text (optional)
+                        </label>
+                        <input
+                            type="text"
+                            value={altText}
+                            onChange={(e) => setAltText(e.target.value)}
+                            placeholder="Describe the image"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                        />
+                    </div>
+
+                    {/* Info message */}
+                    {(!cloudinaryConfig?.cloudinary_cloud_name || !cloudinaryConfig?.cloudinary_api_key) && (
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-sm text-yellow-800 dark:text-yellow-300">
+                            ⚠️ Cloudinary not configured. Please configure it first to upload images.
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-2 mt-6">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    {(!cloudinaryConfig?.cloudinary_cloud_name || !cloudinaryConfig?.cloudinary_api_key) ? (
+                        <button
+                            onClick={() => {
+                                onConfigureCloudinary();
+                                onClose();
+                            }}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                            Configure Cloudinary
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleUpload}
+                            disabled={!file || uploading}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {uploading ? 'Uploading...' : 'Upload & Insert'}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Menu Button Component
 const MenuButton = ({ onClick, active, disabled, title, children }) => (
     <button
@@ -236,7 +431,7 @@ const MenuButton = ({ onClick, active, disabled, title, children }) => (
 );
 
 // Floating Menu Component
-const FloatingMenu = ({ editor, onLinkClick, onAskAI }) => {
+const FloatingMenu = ({ editor, onLinkClick, onAskAI, onDeleteImage }) => {
     const [show, setShow] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const menuRef = useRef(null);
@@ -287,7 +482,18 @@ const FloatingMenu = ({ editor, onLinkClick, onAskAI }) => {
                 transform: 'translateX(-50%)',
             }}
         >
-            {onAskAI && (
+            {editor.state.selection.node && editor.state.selection.node.type.name === 'image' && (
+                <button
+                    onClick={onDeleteImage}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-md m-1 font-medium"
+                    title="Delete Image"
+                >
+                    <FiTrash2 className="w-4 h-4" />
+                    <span>Delete Image</span>
+                </button>
+            )}
+
+            {onAskAI && !(editor.state.selection.node && editor.state.selection.node.type.name === 'image') && (
                 <button
                     onClick={() => {
                         const { from, to } = editor.state.selection;
@@ -306,19 +512,24 @@ const FloatingMenu = ({ editor, onLinkClick, onAskAI }) => {
                     <span className="font-medium">Ask AI</span>
                 </button>
             )}
+
         </div>
     );
 };
 
-const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false, onAskAI }, ref) => {
+const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false, onAskAI, onConfigureCloudinary, cloudinaryConfig }, ref) => {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showTableModal, setShowTableModal] = useState(false);
+    const [showImageModal, setShowImageModal] = useState(false);
     const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false);
+    const [showDeleteImageConfirm, setShowDeleteImageConfirm] = useState(false);
     const [linkData, setLinkData] = useState({ url: '', text: '' });
     const [editorWidth, setEditorWidth] = useState(896); // Default max-w-4xl = 896px
     const [isResizing, setIsResizing] = useState(false);
     const [resizeEnabled, setResizeEnabled] = useState(false); // Resize disabled by default
     const editorContainerRef = useRef(null);
+    const { addToast } = useToast();
+    const { accessToken } = useAuth();
 
     const handleMouseDown = (e) => {
         e.preventDefault();
@@ -387,6 +598,13 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
             }),
             Subscript,
             Superscript,
+            Image.configure({
+                inline: true,
+                allowBase64: true,
+                HTMLAttributes: {
+                    class: 'max-w-full h-auto rounded-lg my-4 cursor-pointer',
+                },
+            }),
             Table.configure({
                 resizable: true,
                 HTMLAttributes: {
@@ -468,12 +686,105 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
         editor.chain().focus().unsetLink().run();
     };
 
-    const handleTableInsert = ({ rows, cols, withHeaderRow, withHeaderColumn }) => {
-        editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+
+    const handleTableInsert = ({ rows, cols, tableName, withHeaderRow, withHeaderColumn }) => {
+        // Insert table name as a paragraph before the table if provided
+        if (tableName && tableName.trim()) {
+            editor.chain()
+                .focus()
+                .insertContent(`<p style="font-weight: 600; color: #4B5563; margin: 1rem 0 0.5rem 0; font-style: italic; border-bottom: 2px solid #6366F1; display: inline-block; padding: 0 0.5rem 0.25rem 0;">📊 ${tableName}</p>`)
+                .insertTable({ rows, cols, withHeaderRow })
+                .run();
+        } else {
+            editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+        }
     };
 
     const handleDeleteTable = () => {
+        const { state } = editor;
+        const { selection } = state;
+        const { $from } = selection;
+
+        // Try to find and delete the caption paragraph before the table
+        try {
+            // Get position before the current table
+            const tableDepth = $from.depth;
+            let tablePos = null;
+
+            // Find the table node position
+            for (let d = tableDepth; d >= 0; d--) {
+                const node = $from.node(d);
+                if (node.type.name === 'table') {
+                    tablePos = $from.before(d);
+                    break;
+                }
+            }
+
+            if (tablePos !== null && tablePos > 0) {
+                // Check for a paragraph immediately before the table
+                const resolvedPos = state.doc.resolve(tablePos);
+                const nodeBefore = resolvedPos.nodeBefore;
+
+                if (nodeBefore && nodeBefore.type.name === 'paragraph') {
+                    // Check if it contains the table emoji (caption)
+                    const text = nodeBefore.textContent;
+                    if (text && text.includes('📊')) {
+                        // Delete both caption and table
+                        const captionStart = tablePos - nodeBefore.nodeSize;
+                        editor.chain()
+                            .focus()
+                            .deleteRange({ from: captionStart, to: tablePos })
+                            .deleteTable()
+                            .run();
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('Could not find caption, deleting table only', e);
+        }
+
+        // If no caption found or error, just delete the table
         editor.chain().focus().deleteTable().run();
+    };
+
+    const handleDeleteImage = async () => {
+        const { state } = editor;
+        const { selection } = state;
+        let imageUrl = null;
+
+        // Try to get image URL from selected node
+        if (selection.node && selection.node.type.name === 'image') {
+            imageUrl = selection.node.attrs.src;
+        }
+
+        // Delete from editor first (UI responsiveness)
+        editor.chain().focus().deleteSelection().run();
+        setShowDeleteImageConfirm(false);
+
+        // If it's a Cloudinary image, delete from Cloudinary too
+        if (imageUrl && imageUrl.includes('cloudinary.com')) {
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                await axios.delete(
+                    `${API_URL}/api/cloudinary/image`,
+                    {
+                        params: { image_url: imageUrl },
+                        headers: { Authorization: `Bearer ${accessToken}` }
+                    }
+                );
+                addToast('Image deleted from Cloudinary successfully', 'success');
+            } catch (error) {
+                console.error('Failed to delete from Cloudinary:', error);
+                addToast('Deleted from editor, but failed to remove from Cloudinary storage', 'warning');
+            }
+        } else {
+            addToast('Image removed from document', 'success');
+        }
+    };
+
+    const handleImageInsert = (url, alt) => {
+        editor.chain().focus().setImage({ src: url, alt: alt || '' }).run();
     };
 
     const isInTable = editor?.isActive('table');
@@ -536,6 +847,12 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                         title="Link"
                     >
                         <FiLink className="w-4 h-4" />
+                    </MenuButton>
+                    <MenuButton
+                        onClick={() => setShowImageModal(true)}
+                        title="Insert Image"
+                    >
+                        <FiImage className="w-4 h-4" />
                     </MenuButton>
                     <MenuButton
                         onClick={() => editor.chain().focus().toggleHighlight().run()}
@@ -702,6 +1019,20 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                 </div>
             )}
 
+            {/* Image Controls - Show when image is selected */}
+            {(editor.state.selection.node && editor.state.selection.node.type.name === 'image') && (
+                <div className="flex items-center gap-1 px-2 border-r border-gray-300 dark:border-gray-600">
+                    <MenuButton
+                        onClick={() => setShowDeleteImageConfirm(true)}
+                        title="Delete image"
+                        className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                        <FiTrash2 className="w-4 h-4" />
+                        <span className="text-xs ml-1">Delete Image</span>
+                    </MenuButton>
+                </div>
+            )}
+
             <div className="flex-1 overflow-auto relative">
                 <div
                     ref={editorContainerRef}
@@ -722,6 +1053,7 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                                 setShowLinkModal(true);
                             }}
                             onAskAI={onAskAI}
+                            onDeleteImage={() => setShowDeleteImageConfirm(true)}
                         />
                     )}
 
@@ -761,6 +1093,15 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                 />
             )}
 
+            {showImageModal && (
+                <ImageModal
+                    onInsert={handleImageInsert}
+                    onClose={() => setShowImageModal(false)}
+                    onConfigureCloudinary={onConfigureCloudinary}
+                    cloudinaryConfig={cloudinaryConfig}
+                />
+            )}
+
             {showDeleteTableConfirm && (
                 <ConfirmationModal
                     isOpen={showDeleteTableConfirm}
@@ -770,9 +1111,19 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
                     message="Are you sure you want to delete this table? This action cannot be undone."
                 />
             )}
+            {showDeleteImageConfirm && (
+                <ConfirmationModal
+                    isOpen={showDeleteImageConfirm}
+                    onClose={() => setShowDeleteImageConfirm(false)}
+                    onConfirm={handleDeleteImage}
+                    title="Delete Image"
+                    message="Are you sure you want to delete this image? This action cannot be undone."
+                />
+            )}
         </div>
     );
 });
+
 
 RichTextEditor.displayName = 'RichTextEditor';
 

@@ -31,7 +31,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     );
 };
 
-const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser, onAskAI }, ref) => {
+const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser, onAskAI, onConfigureCloudinary }, ref) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -177,6 +177,8 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser
                         placeholder="Start writing..."
                         readOnly={isReadOnly}
                         onAskAI={onAskAI}
+                        onConfigureCloudinary={onConfigureCloudinary}
+                        cloudinaryConfig={currentUser}
                     />
                 </div>
             </div>

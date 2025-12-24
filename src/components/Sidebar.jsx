@@ -133,6 +133,8 @@ const Sidebar = ({
         if (onCreateNote) onCreateNote(selectedFolder);
     };
 
+
+
     const toggleFolder = (folderId) => {
         setExpandedFolders((prev) => {
             const newSet = new Set(prev);
@@ -284,7 +286,7 @@ const Sidebar = ({
                 </button>
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white rounded-lg shadow-md text-sm font-medium"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg shadow-md text-sm font-medium"
                 >
                     <FiFolder className="w-4 h-4" />
                     <span>{selectedFolder ? 'New Subfolder' : 'New Folder'}</span>

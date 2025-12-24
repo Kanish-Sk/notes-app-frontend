@@ -5,6 +5,7 @@ import Editor from '../components/Editor';
 import AIAssistant from '../components/AIAssistant';
 import SettingsModal from '../components/SettingsModal';
 import MongoDBSetupModal from '../components/MongoDBSetupModal';
+import CloudinarySettingsModal from '../components/CloudinarySettingsModal';
 import { notesAPI, aiAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -19,6 +20,7 @@ function Home() {
     const [aiSidebarWidth, setAiSidebarWidth] = useState(450);
     const [settingsUpdateTrigger, setSettingsUpdateTrigger] = useState(0);
     const [showMongoModal, setShowMongoModal] = useState(false);
+    const [showCloudinaryModal, setShowCloudinaryModal] = useState(false);
     const [pendingNoteCreation, setPendingNoteCreation] = useState(null);
     const [askAIText, setAskAIText] = useState(null);
 
@@ -83,6 +85,8 @@ function Home() {
             addToast(errorMsg, 'error');
         }
     };
+
+
 
     const handleSelectNote = (note) => {
         setSelectedNote(note);
@@ -464,6 +468,7 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                     onDeleteNote={handleDeleteNote}
                     currentUser={user}
                     onAskAI={handleAskAI}
+                    onConfigureCloudinary={() => setShowCloudinaryModal(true)}
                 />
             </div>
 
@@ -506,6 +511,12 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                 onClose={handleMongoModalClose}
                 onSuccess={handleMongoSetupSuccess}
                 accessToken={accessToken}
+            />
+
+            {/* Cloudinary Settings Modal */}
+            <CloudinarySettingsModal
+                isOpen={showCloudinaryModal}
+                onClose={() => setShowCloudinaryModal(false)}
             />
         </div>
     );

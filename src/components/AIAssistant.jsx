@@ -43,6 +43,42 @@ const AIAssistant = ({
     const { accessToken } = useAuth();
     const messagesEndRef = useRef(null);
     const sidebarRef = useRef(null);
+    const textareaRef = useRef(null);
+
+        // Robust auto-resize textarea
+    useEffect(() => {
+        const triggerResize = () => {
+            if (textareaRef.current) {
+                const el = textareaRef.current;
+                
+                // Forcing layout recalculation
+                el.style.height = '0px';
+                const scrollHeight = el.scrollHeight;
+                
+                const maxHeight = 250;
+                const minHeight = 44;
+                const finalHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+                
+                el.style.height = finalHeight + 'px';
+                el.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+            }
+        };
+
+        // Always trigger when message or isOpen changes
+        triggerResize();
+        
+        // Multi-stage trigger to overcome CSS transition delays
+        const frames = [
+            requestAnimationFrame(triggerResize),
+            requestAnimationFrame(() => requestAnimationFrame(triggerResize)),
+            setTimeout(triggerResize, 100),
+            setTimeout(triggerResize, 300)
+        ];
+
+        return () => {
+            frames.forEach(f => typeof f === 'number' ? clearTimeout(f) : cancelAnimationFrame(f));
+        };
+    }, [message, isOpen, isSidebarMode, width]);
 
     // Copy to clipboard function
     const handleCopy = (text) => {
@@ -72,40 +108,14 @@ const AIAssistant = ({
     };
 
     useEffect(() => {
-        scrollToBottom();
-    }, [chatHistory, isLoading, isSidebarMode]);
-
-    // Handle prefilled message from "Ask AI" button
-    const textareaRef = useRef(null);
-
-    useEffect(() => {
         if (prefillMessage) {
             setMessage(prefillMessage);
-            // Double requestAnimationFrame ensures both state update AND DOM render complete
+            // Just focus, resizing is handled by the other useEffect
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    if (textareaRef.current) {
-                        const el = textareaRef.current;
-                        // Reset to auto to get proper scrollHeight
-                        el.style.height = 'auto';
-                        el.style.height = '44px';
-                        const scrollHeight = el.scrollHeight;
-                        const maxHeight = 140;
-                        const newHeight = Math.min(Math.max(scrollHeight, 44), maxHeight);
-                        el.style.height = newHeight + 'px';
-
-                        console.log('Textarea resize:', { scrollHeight, newHeight, contentLength: prefillMessage.length });
-
-                        // Focus textarea and move cursor to end
-                        el.focus();
-                        el.selectionStart = el.selectionEnd = prefillMessage.length;
-
-                        // Scroll to bottom if content exceeds max height
-                        if (scrollHeight > maxHeight) {
-                            el.scrollTop = el.scrollHeight;
-                        }
-                    }
-                });
+                if (textareaRef.current) {
+                    textareaRef.current.focus();
+                    textareaRef.current.selectionStart = textareaRef.current.selectionEnd = prefillMessage.length;
+                }
             });
         }
     }, [prefillMessage]);
@@ -675,16 +685,7 @@ const AIAssistant = ({
                                 <textarea
                                     ref={textareaRef}
                                     value={message}
-                                    onChange={(e) => {
-                                        setMessage(e.target.value);
-                                        // Auto-resize on change
-                                        const el = e.target;
-                                        el.style.height = '0px'; // Reset to 0 first
-                                        el.style.height = '44px'; // Then set to min height
-                                        const scrollHeight = el.scrollHeight;
-                                        const maxHeight = 140; // ~5 lines
-                                        el.style.height = Math.min(Math.max(scrollHeight, 44), maxHeight) + 'px';
-                                    }}
+                                    onChange={(e) => setMessage(e.target.value)}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -694,7 +695,7 @@ const AIAssistant = ({
                                     placeholder="Type a message..."
                                     className="w-full pl-4 pr-12 py-3 bg-gray-100 dark:bg-gray-900 border-0 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 resize-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition-none overflow-y-auto"
                                     rows="1"
-                                    style={{ minHeight: '44px', maxHeight: '140px', lineHeight: '24px' }}
+                                    style={{ minHeight: '44px', maxHeight: '250px', lineHeight: '24px' }}
                                 />
                                 <button
                                     onClick={handleSend}
