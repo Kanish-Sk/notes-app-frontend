@@ -517,8 +517,9 @@ const FloatingMenu = ({ editor, onLinkClick, onAskAI, onDeleteImage }) => {
     );
 };
 
-const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start writing...', readOnly = false, onAskAI, onConfigureCloudinary, cloudinaryConfig }, ref) => {
+const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'Start writing...', readOnly = false, onAskAI, onConfigureCloudinary, cloudinaryConfig }, ref) => {
     const [showLinkModal, setShowLinkModal] = useState(false);
+    const lastIdRef = useRef(noteId);
     const [showTableModal, setShowTableModal] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
     const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false);
@@ -654,10 +655,16 @@ const RichTextEditor = forwardRef(({ content, onChange, placeholder = 'Start wri
 
     // Update editor content when content prop changes (e.g., when switching notes)
     useEffect(() => {
-        if (editor && content !== editor.getHTML()) {
-            editor.commands.setContent(content);
+        if (!editor) return;
+
+        const isNewNote = lastIdRef.current !== noteId;
+        const isExternalUpdate = !editor.isFocused;
+
+        if (isNewNote || (isExternalUpdate && content !== editor.getHTML())) {
+            editor.commands.setContent(content, false);
+            lastIdRef.current = noteId;
         }
-    }, [editor, content]);
+    }, [editor, content, noteId]);
 
     const handleLinkClick = () => {
         const { from, to } = editor.state.selection;

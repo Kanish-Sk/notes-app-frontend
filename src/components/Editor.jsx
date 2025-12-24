@@ -172,6 +172,7 @@ const NotionEditor = forwardRef(({ note, onUpdateNote, onDeleteNote, currentUser
                 <div className="max-w-full h-full">
                     <RichTextEditor
                         ref={editorRef}
+                        noteId={note._id || note.id}
                         content={content}
                         onChange={handleContentChange}
                         placeholder="Start writing..."
