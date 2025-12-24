@@ -28,6 +28,7 @@ import ShareModal from './ShareNoteModal';
 
 const Sidebar = ({
     notes,
+    folders,
     selectedNote,
     onSelectNote,
     onCreateNote,
@@ -35,12 +36,13 @@ const Sidebar = ({
     onUpdateNote,
     onDeleteNote,
     onNotesChanged,
+    onFoldersChanged,
+    onDeleteFolder,
 }) => {
     const { isDark, toggleTheme } = useTheme();
     const { user, accessToken, logout } = useAuth();
     const { addToast } = useToast();
 
-    const [folders, setFolders] = useState([]);
     const [expandedFolders, setExpandedFolders] = useState(new Set());
     const [selectedFolder, setSelectedFolder] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,19 +60,6 @@ const Sidebar = ({
     const [shareItemType, setShareItemType] = useState('note');
     const editInputRef = useRef(null);
 
-    // Load folders on auth change
-    useEffect(() => {
-        const fetchFolders = async () => {
-            try {
-                const response = await foldersAPI.getAllFolders(accessToken);
-                setFolders(response.data);
-            } catch (err) {
-                console.error('Failed to load folders', err);
-            }
-        };
-        if (user) fetchFolders();
-    }, [user, accessToken]);
-
     // Focus edit input when editing starts
     useEffect(() => {
         if (editingId && editInputRef.current) {
@@ -78,6 +67,15 @@ const Sidebar = ({
             editInputRef.current.select();
         }
     }, [editingId]);
+
+    // Reset selectedFolder if it's no longer in the folders list
+    useEffect(() => {
+        if (selectedFolder) {
+            const folderId = selectedFolder._id || selectedFolder.id;
+            const exists = folders.some(f => (f._id || f.id) === folderId);
+            if (!exists) setSelectedFolder(null);
+        }
+    }, [folders]);
 
     // Close context menu on outside click
     useEffect(() => {
@@ -90,9 +88,8 @@ const Sidebar = ({
         try {
             const folderData = { name };
             if (selectedFolder) folderData.parent_id = selectedFolder._id || selectedFolder.id;
-            const response = await foldersAPI.createFolder(folderData, accessToken);
-            const newFolder = response.data;
-            setFolders((prev) => [...prev, newFolder]);
+            await foldersAPI.createFolder(folderData, accessToken);
+            if (onFoldersChanged) await onFoldersChanged();
             if (selectedFolder) {
                 setExpandedFolders((prev) => new Set([...prev, selectedFolder._id || selectedFolder.id]));
             }
@@ -113,19 +110,17 @@ const Sidebar = ({
         const folderId = folderToDelete._id || folderToDelete.id;
         const folderName = folderToDelete.name;
         try {
-            await foldersAPI.deleteFolder(folderId, accessToken, moveToRoot);
-            const response = await foldersAPI.getAllFolders(accessToken);
-            setFolders(response.data);
-            if ((selectedFolder?._id || selectedFolder?.id) === folderId) setSelectedFolder(null);
-            if (selectedNote && selectedNote.folder_id === folderId) onSelectNote(null);
-            if (onNotesChanged) onNotesChanged();
+            if (onDeleteFolder) {
+                await onDeleteFolder(folderId, folderName, moveToRoot);
+            } else {
+                await foldersAPI.deleteFolder(folderId, accessToken, moveToRoot);
+                if (onFoldersChanged) await onFoldersChanged();
+            }
             setDeleteModalOpen(false);
             setFolderToDelete(null);
-            addToast(`Folder "${folderName}" deleted successfully`, 'success');
+            if (onNotesChanged) onNotesChanged();
         } catch (err) {
             console.error('Delete folder error', err);
-            const errorMsg = err.response?.data?.detail || 'Failed to delete folder';
-            addToast(errorMsg, 'error');
         }
     };
 
@@ -159,9 +154,7 @@ const Sidebar = ({
         try {
             if (type === 'folder') {
                 await foldersAPI.updateFolder(item._id || item.id, { name: editingName }, accessToken);
-                setFolders((prev) =>
-                    prev.map((f) => ((f._id || f.id) === (item._id || item.id) ? { ...f, name: editingName } : f))
-                );
+                if (onFoldersChanged) await onFoldersChanged(); // setFolders removed
             } else if (type === 'note' && onUpdateNote) {
                 await onUpdateNote(item._id, { title: editingName });
             }
@@ -219,8 +212,7 @@ const Sidebar = ({
                 await onUpdateNote(item._id, { folder_id: targetFolderId });
             } else if (type === 'folder') {
                 await foldersAPI.updateFolder(item._id || item.id, { parent_id: targetFolderId }, accessToken);
-                const response = await foldersAPI.getAllFolders(accessToken);
-                setFolders(response.data);
+                if (onFoldersChanged) await onFoldersChanged();
                 if (targetFolderId) setExpandedFolders((prev) => new Set([...prev, targetFolderId]));
             }
         } catch (err) {

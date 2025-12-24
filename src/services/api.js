@@ -69,13 +69,14 @@ export const chatsAPI = {
 };
 
 export const aiAPI = {
-    chat: (message, currentContent, editMode, token) =>
+    chat: (message, currentContent, editMode, token, history = []) =>
         api.post(
             "/ai/chat",
             {
                 message,
                 current_content: currentContent,
                 edit_mode: editMode,
+                messages: history,
             },
             { headers: createAuthHeaders(token) }
         ),

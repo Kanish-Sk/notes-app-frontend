@@ -6,12 +6,13 @@ import AIAssistant from '../components/AIAssistant';
 import SettingsModal from '../components/SettingsModal';
 import MongoDBSetupModal from '../components/MongoDBSetupModal';
 import CloudinarySettingsModal from '../components/CloudinarySettingsModal';
-import { notesAPI, aiAPI } from '../services/api';
+import { notesAPI, aiAPI, foldersAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
 function Home() {
     const [notes, setNotes] = useState([]);
+    const [folders, setFolders] = useState([]);
     const [selectedNote, setSelectedNote] = useState(null);
     const [aiOpen, setAiOpen] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -28,10 +29,22 @@ function Home() {
     const { addToast } = useToast();
     const editorRef = React.useRef(null);
 
-    // Load notes on mount
+    // Load notes and folders on mount
     useEffect(() => {
-        loadNotes();
-    }, []);
+        if (accessToken) {
+            loadNotes();
+            loadFolders();
+        }
+    }, [accessToken]);
+
+    const loadFolders = async () => {
+        try {
+            const response = await foldersAPI.getAllFolders(accessToken);
+            setFolders(response.data);
+        } catch (err) {
+            console.error('Failed to load folders', err);
+        }
+    };
 
     const loadNotes = async () => {
         try {
@@ -57,7 +70,7 @@ function Home() {
         }
     };
 
-    const handleCreateNote = async (folder = null) => {
+    const handleCreateNote = async (folder = null, title = null, content = null) => {
         // Check if user has database configured and has no notes (first note)
         if (user && !user.has_database && notes.length === 0) {
             // Store the folder for later use after MongoDB setup
@@ -68,17 +81,18 @@ function Home() {
 
         try {
             const newNote = {
-                title: `Untitled ${new Date().toLocaleTimeString()}`,
-                content: '# New Note\n\nStart writing here...',
+                title: title || `Untitled ${new Date().toLocaleTimeString()}`,
+                content: content || '# New Note\n\nStart writing here...',
             };
             // If folder is provided, add folder_id
             if (folder) {
                 newNote.folder_id = folder._id || folder.id;
             }
             const response = await notesAPI.createNote(newNote, accessToken);
-            setNotes([response.data, ...notes]);
+            setNotes(prevNotes => [response.data, ...prevNotes]);
             setSelectedNote(response.data);
             addToast('Note created successfully', 'success');
+            return response.data;
         } catch (error) {
             console.error('Error creating note:', error);
             const errorMsg = error.response?.data?.detail || 'Failed to create note';
@@ -87,6 +101,31 @@ function Home() {
     };
 
 
+
+    const handleDeleteFolder = async (folderId, folderName, moveToRoot = true) => {
+        try {
+            await foldersAPI.deleteFolder(folderId, accessToken, moveToRoot);
+            await loadFolders();
+
+            // If we deleted contents, always reload all notes
+            if (!moveToRoot) {
+                await loadNotes();
+            } else if (selectedNote && (selectedNote.folder_id === folderId || selectedNote.folder_id === (folderId._id || folderId))) {
+                // If items were moved to root and current note was in this folder, reload to update its folder_id
+                await loadNotes();
+            }
+
+            // Clear note selection if the deleted folder contained the current note and contents were deleted
+            if (!moveToRoot && selectedNote && (selectedNote.folder_id === folderId || selectedNote.folder_id === (folderId._id || folderId))) {
+                setSelectedNote(null);
+            }
+
+            addToast(`Folder "${folderName}" deleted successfully`, 'success');
+        } catch (error) {
+            console.error('Error deleting folder:', error);
+            addToast('Failed to delete folder', 'error');
+        }
+    };
 
     const handleSelectNote = (note) => {
         setSelectedNote(note);
@@ -124,13 +163,44 @@ function Home() {
         }
     };
 
-    const handleAIMessage = async (message, currentContent, editMode) => {
+    // Helper to find or create folder by name
+    const ensureFolderExists = async (folderName, parentName = null) => {
+        if (!folderName) return null;
+
+        // Fetch latest folders to ensure we have current list
+        try {
+            const latestFoldersResponse = await foldersAPI.getAllFolders(accessToken);
+            const currentFolders = latestFoldersResponse.data;
+            // setFolders(currentFolders); // No need to re-set here, we use loadFolders in handle functions
+
+            let folder = currentFolders.find(f => f.name.toLowerCase() === folderName.trim().toLowerCase());
+            if (folder) return folder;
+
+            console.log(`AI: Creating new folder: ${folderName}`);
+            const folderData = { name: folderName.trim() };
+            if (parentName) {
+                const parent = currentFolders.find(f => f.name.toLowerCase() === parentName.trim().toLowerCase());
+                if (parent) folderData.parent_id = parent._id || parent.id;
+            }
+            const response = await foldersAPI.createFolder(folderData, accessToken);
+            const newFolder = response.data;
+            setFolders(prev => [...prev, newFolder]);
+            return newFolder;
+        } catch (e) {
+            console.error("AI: Failed to auto-create folder", e);
+            return null;
+        }
+    };
+
+    const handleAIMessage = async (message, currentContent, editMode, history = []) => {
         try {
             console.log('=== AI MESSAGE ===');
-            console.log('Edit Mode:', editMode);
-            console.log('Current Content Length:', currentContent?.length || 0);
-            console.log('Selected Note ID:', selectedNote?._id);
-            console.log('Has selection:', !!selectedTextInfo);
+
+            // Re-fetch latest data to ensure command processing uses current state
+            const foldersRes = await foldersAPI.getAllFolders(accessToken);
+            const latestFolders = foldersRes.data;
+            const notesRes = await notesAPI.getAllNotes(accessToken);
+            const latestNotes = notesRes.data;
 
             // If editing a selection, prepend instruction to only edit that part
             let finalMessage = message;
@@ -149,11 +219,116 @@ ${selectedTextInfo.text}
    - ONLY the edited portion (the modified version of the selected text above)
    
 DO NOT include the rest of the document. ONLY return the edited selection.`;
-                console.log('Sending selective edit instruction');
             }
 
-            const response = await aiAPI.chat(finalMessage, currentContent, editMode, accessToken);
-            console.log('AI Response:', response.data);
+            const response = await aiAPI.chat(finalMessage, currentContent, editMode, accessToken, history);
+            const aiData = response.data;
+            const aiText = aiData.message || "";
+
+            // --- AI ACTION PARSING ---
+            console.log('AI Full Response Text:', aiText);
+            const foundCommands = [];
+
+            if (aiText.includes('COMMAND:')) {
+                const lines = aiText.split('\n');
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    const commandMatch = trimmedLine.match(/COMMAND:([A-Z_]+):\s*(\{.*\})/);
+                    if (!commandMatch) continue;
+                    
+                    const commandType = commandMatch[1];
+                    const jsonString = commandMatch[2];
+                    console.log('Processing Command:', commandType, 'with data:', jsonString);
+
+                    let data;
+                    try {
+                        data = JSON.parse(jsonString);
+                    } catch (e) {
+                        console.error("AI JSON Parse Error:", e, "Line:", trimmedLine);
+                        continue;
+                    }
+                    
+                    foundCommands.push(commandType);
+
+                    if (commandType === 'CREATE_FOLDER') {
+                        try {
+                            await ensureFolderExists(data.name, data.parent_name);
+                        } catch (e) { console.error("AI Create Folder Error:", e); }
+                    }
+                    else if (commandType === 'CREATE_NOTE') {
+                        try {
+                            let targetFolder = null;
+                            if (data.folder_name) targetFolder = await ensureFolderExists(data.folder_name);
+                            const { marked } = await import('marked');
+                            await handleCreateNote(targetFolder, data.title, marked.parse(data.content || ""));
+                        } catch (e) { console.error("AI Create Note Error:", e); }
+                    }
+                    else if (commandType === 'DELETE_NOTE') {
+                        try {
+                            console.log('AI ACTION: Attempting to delete note with title:', data.title);
+                            const noteToDelete = latestNotes.find(n => n.title?.toString().trim().toLowerCase() === data.title?.toString().trim().toLowerCase());
+                            if (noteToDelete) {
+                                console.log('AI ACTION: Found note to delete:', noteToDelete);
+                                await notesAPI.deleteNote(noteToDelete._id || noteToDelete.id, accessToken);
+                                await loadNotes();
+                                addToast(`Note "${noteToDelete.title}" deleted`, 'success');
+                            } else {
+                                console.warn('AI ACTION: Note not found for deletion:', data.title);
+                                console.log('Available Notes:', latestNotes.map(n => n.title));
+                            }
+                        } catch (e) { console.error("AI Delete Note Error:", e); }
+                    }
+                    else if (commandType === 'DELETE_FOLDER') {
+                        try {
+                            console.log('AI ACTION: Searching for folder', data.name, 'in', latestFolders.map(f => f.name));
+                            const folderToDelete = latestFolders.find(f => f.name?.toString().trim().toLowerCase() === data.name?.toString().trim().toLowerCase());
+                            if (folderToDelete) {
+                                console.log('AI ACTION: Found folder to delete', folderToDelete);
+                                const folderId = folderToDelete._id || folderToDelete.id;
+                                const moveToRoot = data.delete_contents === true ? false : true;
+                                await handleDeleteFolder(folderId, folderToDelete.name, moveToRoot);
+                            } else {
+                                console.warn('AI ACTION: Folder not found for deletion:', data.name);
+                            }
+                        } catch (e) { console.error("AI Delete Folder Error:", e); }
+                    }
+                    else if (commandType === 'UPDATE_NOTE') {
+                        try {
+                            const note = latestNotes.find(n => n.title?.toString().trim().toLowerCase() === data.old_title?.toString().trim().toLowerCase());
+                            if (note) {
+                                let updates = {};
+                                if (data.new_title) updates.title = data.new_title;
+                                if (data.new_folder) {
+                                    const folder = await ensureFolderExists(data.new_folder);
+                                    updates.folder_id = folder ? (folder._id || folder.id) : null;
+                                }
+                                await handleUpdateNote(note._id || note.id, updates);
+                                addToast(`Note "${note.title}" updated`, 'success');
+                            } else {
+                                console.warn('AI ACTION: Note not found for update:', data.old_title);
+                            }
+                        } catch (e) { console.error("AI Update Note Error:", e); }
+                    }
+                    else if (commandType === 'UPDATE_FOLDER') {
+                        try {
+                            const folderToUpdate = latestFolders.find(f => f.name?.toString().trim().toLowerCase() === data.old_name?.toString().trim().toLowerCase());
+                            if (folderToUpdate) {
+                                let updates = {};
+                                if (data.new_name) updates.name = data.new_name;
+                                if (data.new_parent) {
+                                    const parent = await ensureFolderExists(data.new_parent);
+                                    updates.parent_id = parent ? (parent._id || parent.id) : null;
+                                }
+                                await foldersAPI.updateFolder(folderToUpdate._id || folderToUpdate.id, updates, accessToken);
+                                await loadFolders();
+                                addToast(`Folder "${folderToUpdate.name}" updated`, 'success');
+                            } else {
+                                console.warn('AI ACTION: Folder not found for update:', data.old_name);
+                            }
+                        } catch (e) { console.error("AI Update Folder Error:", e); }
+                    }
+                }
+            }
 
             if (editMode && response.data.updated_content && selectedNote) {
                 // IMPORTANT: If there's a selection, don't auto-update the document
@@ -451,12 +626,15 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                 {/* Sidebar */}
                 <Sidebar
                     notes={notes}
+                    folders={folders}
                     selectedNote={selectedNote}
                     onSelectNote={handleSelectNote}
                     onCreateNote={handleCreateNote}
                     onUpdateNote={handleUpdateNote}
                     onDeleteNote={handleDeleteNote}
                     onNotesChanged={loadNotes}
+                    onFoldersChanged={loadFolders}
+                    onDeleteFolder={handleDeleteFolder}
                     onOpenSettings={() => setShowSettings(true)}
                 />
 

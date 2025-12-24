@@ -45,20 +45,20 @@ const AIAssistant = ({
     const sidebarRef = useRef(null);
     const textareaRef = useRef(null);
 
-        // Robust auto-resize textarea
+    // Robust auto-resize textarea
     useEffect(() => {
         const triggerResize = () => {
             if (textareaRef.current) {
                 const el = textareaRef.current;
-                
+
                 // Forcing layout recalculation
                 el.style.height = '0px';
                 const scrollHeight = el.scrollHeight;
-                
+
                 const maxHeight = 250;
                 const minHeight = 44;
                 const finalHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-                
+
                 el.style.height = finalHeight + 'px';
                 el.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
             }
@@ -66,7 +66,7 @@ const AIAssistant = ({
 
         // Always trigger when message or isOpen changes
         triggerResize();
-        
+
         // Multi-stage trigger to overcome CSS transition delays
         const frames = [
             requestAnimationFrame(triggerResize),
@@ -106,6 +106,10 @@ const AIAssistant = ({
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [chatHistory, isLoading]);
 
     useEffect(() => {
         if (prefillMessage) {
@@ -253,7 +257,7 @@ const AIAssistant = ({
             console.log('Current Content:', currentContent?.substring(0, 200));
             console.log('Message:', message);
 
-            const response = await onSendMessage(userMessage.content, currentContent, editMode);
+            const response = await onSendMessage(userMessage.content, currentContent, editMode, newHistory);
 
             console.log('========= AI RESPONSE =========');
             console.log('Response:', response);
@@ -262,7 +266,15 @@ const AIAssistant = ({
                 console.log('Updated Content Preview:', response.updated_content.substring(0, 200));
             }
 
-            const aiMessage = { role: 'assistant', content: response.message, timestamp: new Date() };
+            // Strip COMMAND: lines from the AI message before displaying
+            // Regex matches COMMAND:[TYPE]:{...} anywhere on a line, including inside markdown
+            const commandRegex = /.*COMMAND:[A-Z_]+:.*/;
+            const displayMessage = response.message ? response.message.split('\n')
+                .filter(line => !commandRegex.test(line))
+                .join('\n')
+                .trim() : "";
+
+            const aiMessage = { role: 'assistant', content: displayMessage, timestamp: new Date() };
             const updatedHistory = [...newHistory, aiMessage];
             setChatHistory(updatedHistory);
 
