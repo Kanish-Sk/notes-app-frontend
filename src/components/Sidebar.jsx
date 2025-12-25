@@ -408,9 +408,12 @@ const Sidebar = ({
         <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    📔 {user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'My'} notes
-                </h1>
+                <div className="flex items-center gap-2">
+                    <img src="/notefusion-logo.jpg" alt="Note Fusion" className="w-8 h-8 rounded object-cover" />
+                    <h1 className="text-base font-semibold bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                        Note Fusion
+                    </h1>
+                </div>
                 <button onClick={onOpenSettings} className="p-1 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
                     <FiSettings className="w-4 h-4" />
                 </button>

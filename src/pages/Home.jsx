@@ -694,10 +694,10 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                 !aiOpen && (
                     <button
                         onClick={() => setAiOpen(true)}
-                        className="fixed bottom-12 right-10 w-14 h-14 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group hover:scale-110 z-40"
+                        className="fixed bottom-12 right-10 w-16 h-16 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group hover:scale-110 z-40 bg-gradient-to-br from-blue-500 to-purple-600 p-1"
                         title="AI Assistant"
                     >
-                        <FiZap className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                        <img src="/notefusion-robot.jpg" alt="AI" className="w-full h-full object-cover rounded-full" />
                     </button>
                 )
             }
