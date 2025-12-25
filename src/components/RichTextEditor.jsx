@@ -575,13 +575,14 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
                     levels: [1, 2, 3],
                 },
                 strike: false, // We'll add it separately
+                // Note: StarterKit doesn't include Link or Underline by default
             }),
             Placeholder.configure({
                 placeholder,
             }),
-            Underline,
+            Underline.extend({ name: 'customUnderline' }),
             Strike,
-            Link.configure({
+            Link.extend({ name: 'customLink' }).configure({
                 openOnClick: false,
                 HTMLAttributes: {
                     class: 'text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-800 dark:hover:text-indigo-300',
@@ -669,7 +670,7 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
     const handleLinkClick = () => {
         const { from, to } = editor.state.selection;
         const selectedText = editor.state.doc.textBetween(from, to, ' ');
-        const href = editor.getAttributes('link').href;
+        const href = editor.getAttributes('customLink').href;
 
         if (href) {
             setLinkData({ url: href, text: selectedText });
@@ -835,7 +836,7 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
                     </MenuButton>
                     <MenuButton
                         onClick={() => editor.chain().focus().toggleUnderline().run()}
-                        active={editor.isActive('underline')}
+                        active={editor.isActive('customUnderline')}
                         title="Underline (Cmd+U)"
                     >
                         <FiUnderline className="w-4 h-4" />
@@ -850,7 +851,7 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                     <MenuButton
                         onClick={handleLinkClick}
-                        active={editor.isActive('link')}
+                        active={editor.isActive('customLink')}
                         title="Link"
                     >
                         <FiLink className="w-4 h-4" />
@@ -1055,7 +1056,7 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
                             onLinkClick={() => {
                                 const { from, to } = editor.state.selection;
                                 const text = editor.state.doc.textBetween(from, to, ' ');
-                                const url = editor.getAttributes('link').href || '';
+                                const url = editor.getAttributes('customLink').href || '';
                                 setLinkData({ url, text });
                                 setShowLinkModal(true);
                             }}

@@ -80,6 +80,81 @@ export const aiAPI = {
             },
             { headers: createAuthHeaders(token) }
         ),
+
+    // Streaming chat using Server-Sent Events
+    chatStream: (message, currentContent, editMode, token, history = [], onChunk, onComplete, onError) => {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const url = `${API_URL}/api/ai/chat/stream`;
+
+        // Use fetch with streaming for maximum control
+        const controller = new AbortController();
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                message,
+                current_content: currentContent,
+                edit_mode: editMode,
+                messages: history
+            }),
+            signal: controller.signal
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+
+                    if (done) {
+                        onComplete();
+                        break;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                onComplete();
+                                return;
+                            }
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.content) {
+                                    onChunk(parsed.content);
+                                } else if (parsed.error) {
+                                    onError(new Error(parsed.error));
+                                    return;
+                                }
+                            } catch (e) {
+                                // Ignore parse errors for incomplete chunks
+                            }
+                        }
+                    }
+                }
+            })
+            .catch((error) => {
+                if (error.name !== 'AbortError') {
+                    onError(error);
+                }
+            });
+
+        // Return abort function
+        return () => controller.abort();
+    }
 };
 
 export const settingsAPI = {

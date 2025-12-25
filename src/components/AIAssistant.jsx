@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FiX, FiSend, FiZap, FiPlus, FiMessageSquare, FiTrash2, FiMaximize2, FiMinimize2, FiList, FiSettings, FiCopy, FiFileText } from 'react-icons/fi';
+import { FiX, FiSend, FiZap, FiPlus, FiMessageSquare, FiTrash2, FiMaximize2, FiMinimize2, FiList, FiSettings, FiFileText } from 'react-icons/fi';
 import { aiAPI, chatsAPI, settingsAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,7 +26,7 @@ const AIAssistant = ({
     const [message, setMessage] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [editMode, setEditMode] = useState(false);
+
     const [showChatList, setShowChatList] = useState(false);
     const [savedChats, setSavedChats] = useState([]);
     const [currentChatId, setCurrentChatId] = useState(null);
@@ -38,12 +38,14 @@ const AIAssistant = ({
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [isChecking, setIsChecking] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    const [streamingMessageId, setStreamingMessageId] = useState(null);
 
     const { addToast } = useToast();
     const { accessToken } = useAuth();
     const messagesEndRef = useRef(null);
     const sidebarRef = useRef(null);
     const textareaRef = useRef(null);
+    const abortStreamRef = useRef(null);
 
     // Robust auto-resize textarea
     useEffect(() => {
@@ -80,11 +82,7 @@ const AIAssistant = ({
         };
     }, [message, isOpen, isSidebarMode, width]);
 
-    // Copy to clipboard function
-    const handleCopy = (text) => {
-        navigator.clipboard.writeText(text);
-        addToast('Copied to clipboard', 'success');
-    };
+
 
     // Insert into notes function - now uses the direct insert
     const handleInsert = async (text) => {
@@ -109,7 +107,16 @@ const AIAssistant = ({
 
     useEffect(() => {
         scrollToBottom();
-    }, [chatHistory, isLoading]);
+    }, [chatHistory, isLoading, streamingMessageId]);
+
+    // Cleanup streaming on unmount
+    useEffect(() => {
+        return () => {
+            if (abortStreamRef.current) {
+                abortStreamRef.current();
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (prefillMessage) {
@@ -228,7 +235,7 @@ const AIAssistant = ({
         const hasActive = configuredProviders.some(p => p.is_active);
         if (!hasActive) {
             addToast('Please configure and activate an LLM provider first', 'error');
-            setHasProviders(false); // Force UI update
+            setHasProviders(false);
             return;
         }
 
@@ -240,54 +247,151 @@ const AIAssistant = ({
         }
 
         const userMessage = { role: 'user', content: message, timestamp: new Date() };
-        const newHistory = [...chatHistory, userMessage];
-        setChatHistory(newHistory);
+        const streamingMsgId = Date.now().toString();
+        const aiPlaceholder = {
+            role: 'assistant',
+            content: '', // Empty to show thinking dots initially
+            timestamp: new Date(),
+            id: streamingMsgId,
+            isStreaming: true
+        };
 
-        // Clear input immediately after adding to history
+        const newHistory = [...chatHistory, userMessage, aiPlaceholder];
+        setChatHistory(newHistory);
+        setStreamingMessageId(streamingMsgId);
+
+        // Clear input immediately
+        const currentMessage = message;
         setMessage('');
-        // Reset textarea height to 1 line
         if (textareaRef.current) {
             textareaRef.current.style.height = '44px';
         }
         setIsLoading(true);
 
-        try {
-            console.log('========= SENDING AI MESSAGE =========');
-            console.log('Edit Mode:', editMode);
-            console.log('Current Content:', currentContent?.substring(0, 200));
-            console.log('Message:', message);
+        // Use refs for performance - avoid state updates on every chunk
+        const fullResponseRef = { current: '' };
+        let updateScheduled = false;
+        let lastUpdateTime = 0;
+        const UPDATE_INTERVAL = 50; // Update UI every 50ms max
 
-            const response = await onSendMessage(userMessage.content, currentContent, editMode, newHistory);
+        // Build the messages array for streaming
+        const historyForAPI = [...chatHistory, userMessage].map(m => ({
+            role: m.role,
+            content: m.content
+        }));
 
-            console.log('========= AI RESPONSE =========');
-            console.log('Response:', response);
-            console.log('Has updated_content:', !!response.updated_content);
-            if (response.updated_content) {
-                console.log('Updated Content Preview:', response.updated_content.substring(0, 200));
-            }
-
-            // Strip COMMAND: lines from the AI message before displaying
-            // Regex matches COMMAND:[TYPE]:{...} anywhere on a line, including inside markdown
-            const commandRegex = /.*COMMAND:[A-Z_]+:.*/;
-            const displayMessage = response.message ? response.message.split('\n')
+        // Helper to strip COMMAND lines from display
+        const stripCommands = (text) => {
+            const commandRegex = /.*COMMAND:[A-Z_]+:.*/g;
+            return text.split('\n')
                 .filter(line => !commandRegex.test(line))
                 .join('\n')
-                .trim() : "";
+                .trim();
+        };
 
-            const aiMessage = { role: 'assistant', content: displayMessage, timestamp: new Date() };
-            const updatedHistory = [...newHistory, aiMessage];
-            setChatHistory(updatedHistory);
+        // Batched UI update function
+        const scheduleUpdate = () => {
+            if (updateScheduled) return;
 
-            // Auto-save chat
-            await saveCurrentChat(updatedHistory, newTitle);
-        } catch (error) {
-            console.error('AI chat error:', error);
-            const errorMessage = { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', timestamp: new Date() };
-            setChatHistory((prev) => [...prev, errorMessage]);
-            addToast('Failed to get AI response', 'error');
-        } finally {
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastUpdateTime;
+
+            if (timeSinceLastUpdate >= UPDATE_INTERVAL) {
+                // Update immediately with commands stripped
+                lastUpdateTime = now;
+                setChatHistory(prev => prev.map(msg =>
+                    msg.id === streamingMsgId
+                        ? { ...msg, content: stripCommands(fullResponseRef.current) }
+                        : msg
+                ));
+            } else {
+                // Schedule update
+                updateScheduled = true;
+                setTimeout(() => {
+                    updateScheduled = false;
+                    lastUpdateTime = Date.now();
+                    setChatHistory(prev => prev.map(msg =>
+                        msg.id === streamingMsgId
+                            ? { ...msg, content: stripCommands(fullResponseRef.current) }
+                            : msg
+                    ));
+                }, UPDATE_INTERVAL - timeSinceLastUpdate);
+            }
+        };
+
+        // Start streaming
+        const onChunk = (chunk) => {
+            fullResponseRef.current += chunk;
+            scheduleUpdate();
+        };
+
+        const onComplete = async () => {
             setIsLoading(false);
+            setStreamingMessageId(null);
+
+            // Strip COMMAND: lines from display
+            const commandRegex = /.*COMMAND:[A-Z_]+:.*/;
+            const displayMessage = fullResponseRef.current.split('\n')
+                .filter(line => !commandRegex.test(line))
+                .join('\n')
+                .trim();
+
+            // Final update with complete content
+            setChatHistory(prev => {
+                const updated = prev.map(msg =>
+                    msg.id === streamingMsgId
+                        ? { ...msg, content: displayMessage, isStreaming: false }
+                        : msg
+                );
+                // Save chat after updating
+                saveCurrentChat(updated, newTitle);
+                return updated;
+            });
+
+            // Pass the full response to parent for command parsing
+            try {
+                await onSendMessage(currentMessage, currentContent, false, historyForAPI, fullResponseRef.current);
+            } catch (e) {
+                console.error('Error in command parsing:', e);
+            }
+        };
+
+        const onError = (error) => {
+            setIsLoading(false);
+            setStreamingMessageId(null);
+            console.error('Streaming error:', error);
+
+            // Extract user-friendly error message
+            let errorMessage = 'Sorry, I encountered an error. Please try again.';
+            if (error && typeof error === 'string') {
+                errorMessage = error;
+            } else if (error?.message) {
+                errorMessage = error.message;
+            }
+
+            setChatHistory(prev => prev.map(msg =>
+                msg.id === streamingMsgId
+                    ? { ...msg, content: errorMessage, isStreaming: false }
+                    : msg
+            ));
+            addToast('Failed to get AI response', 'error');
+        };
+
+        // Abort any previous stream
+        if (abortStreamRef.current) {
+            abortStreamRef.current();
         }
+
+        abortStreamRef.current = aiAPI.chatStream(
+            currentMessage,
+            currentContent,
+            false,
+            accessToken,
+            historyForAPI,
+            onChunk,
+            onComplete,
+            onError
+        );
     };
 
     const saveCurrentChat = async (messages = chatHistory, title = chatTitle) => {
@@ -525,7 +629,15 @@ const AIAssistant = ({
                                             <div className="px-4 py-3">
                                                 {msg.role === 'user' ? (
                                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                                ) : msg.isStreaming && !msg.content ? (
+                                                    // Show typing indicator when streaming starts but no content yet
+                                                    <div className="flex items-center gap-1 py-1">
+                                                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                        <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                    </div>
                                                 ) : (
+                                                    // Render markdown (both during streaming and after completion)
                                                     <div className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none">
                                                         <ReactMarkdown
                                                             rehypePlugins={[rehypeRaw]}
@@ -565,12 +677,9 @@ const AIAssistant = ({
                                                                     </h3>
                                                                 ),
                                                                 p: ({ children, node }) => {
-                                                                    // Check if paragraph contains a code block
                                                                     const hasCodeBlock = node?.children?.some(
                                                                         child => child.tagName === 'code' && child.properties?.className?.includes('language-')
                                                                     );
-
-                                                                    // Use div for paragraphs with code blocks to avoid nesting issues
                                                                     if (hasCodeBlock) {
                                                                         return (
                                                                             <div className="my-3 leading-7 text-gray-800 dark:text-gray-200">
@@ -578,7 +687,6 @@ const AIAssistant = ({
                                                                             </div>
                                                                         );
                                                                     }
-
                                                                     return (
                                                                         <p className="my-3 leading-7 text-gray-800 dark:text-gray-200">
                                                                             {children}
@@ -627,43 +735,23 @@ const AIAssistant = ({
                                             </div>
 
                                             {/* Action buttons for AI responses */}
-                                            {msg.role === 'assistant' && (
+                                            {msg.role === 'assistant' && !msg.isStreaming && (
                                                 <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2">
                                                     <button
-                                                        onClick={() => handleCopy(msg.content)}
-                                                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-                                                        title="Copy to clipboard"
+                                                        onClick={() => handleInsert(msg.content)}
+                                                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                                                        title="Insert into current note"
                                                     >
-                                                        <FiCopy className="w-3 h-3" />
-                                                        Copy
+                                                        <FiFileText className="w-3 h-3" />
+                                                        Insert
                                                     </button>
-                                                    {!editMode && (
-                                                        <button
-                                                            onClick={() => handleInsert(msg.content)}
-                                                            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-                                                            title="Insert into current note"
-                                                        >
-                                                            <FiFileText className="w-3 h-3" />
-                                                            Insert
-                                                        </button>
-                                                    )}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 ))
                             )}
-                            {isLoading && (
-                                <div className="flex justify-start">
-                                    <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-none px-4 py-3 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                        <div className="flex gap-1.5">
-                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+
                             <div ref={messagesEndRef} />
                         </div>
 

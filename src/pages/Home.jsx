@@ -192,7 +192,7 @@ function Home() {
         }
     };
 
-    const handleAIMessage = async (message, currentContent, editMode, history = []) => {
+    const handleAIMessage = async (message, currentContent, editMode, history = [], streamedResponse = null) => {
         try {
             console.log('=== AI MESSAGE ===');
 
@@ -221,12 +221,24 @@ ${selectedTextInfo.text}
 DO NOT include the rest of the document. ONLY return the edited selection.`;
             }
 
-            const response = await aiAPI.chat(finalMessage, currentContent, editMode, accessToken, history);
-            const aiData = response.data;
+            // Use streamed response if provided, otherwise make API call
+            let aiData;
+            let response;
+            if (streamedResponse) {
+                // Streaming already happened, just use the response for command parsing
+                aiData = { message: streamedResponse, updated_content: editMode ? streamedResponse : null };
+                response = { data: aiData };
+            } else {
+                response = await aiAPI.chat(finalMessage, currentContent, editMode, accessToken, history);
+                aiData = response.data;
+            }
             const aiText = aiData.message || "";
 
             // --- AI ACTION PARSING ---
-            console.log('AI Full Response Text:', aiText);
+            console.log('=== COMMAND DEBUG ===');
+            console.log('streamedResponse:', streamedResponse ? 'YES (length: ' + streamedResponse.length + ')' : 'null');
+            console.log('Full AI Text:', aiText);
+            console.log('Has COMMAND?:', aiText.includes('COMMAND:'));
             const foundCommands = [];
 
             if (aiText.includes('COMMAND:')) {
@@ -235,7 +247,7 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                     const trimmedLine = line.trim();
                     const commandMatch = trimmedLine.match(/COMMAND:([A-Z_]+):\s*(\{.*\})/);
                     if (!commandMatch) continue;
-                    
+
                     const commandType = commandMatch[1];
                     const jsonString = commandMatch[2];
                     console.log('Processing Command:', commandType, 'with data:', jsonString);
@@ -247,7 +259,7 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                         console.error("AI JSON Parse Error:", e, "Line:", trimmedLine);
                         continue;
                     }
-                    
+
                     foundCommands.push(commandType);
 
                     if (commandType === 'CREATE_FOLDER') {
@@ -330,6 +342,8 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                 }
             }
 
+
+            /* EDIT MODE DISABLED - Users should use Insert button
             if (editMode && response.data.updated_content && selectedNote) {
                 // IMPORTANT: If there's a selection, don't auto-update the document
                 // The matching is too unreliable - user should use Insert button instead  
@@ -470,6 +484,7 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
 
                 console.log('Note updated successfully!');
             }
+            */
 
             return response.data;
         } catch (error) {
@@ -651,15 +666,17 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
             </div>
 
             {/* AI Assistant Toggle Button */}
-            {!aiOpen && (
-                <button
-                    onClick={() => setAiOpen(true)}
-                    className="fixed bottom-12 right-10 w-14 h-14 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group hover:scale-110 z-40"
-                    title="AI Assistant"
-                >
-                    <FiZap className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                </button>
-            )}
+            {
+                !aiOpen && (
+                    <button
+                        onClick={() => setAiOpen(true)}
+                        className="fixed bottom-12 right-10 w-14 h-14 bg-gradient-to-br from-purple-500 to-blue-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group hover:scale-110 z-40"
+                        title="AI Assistant"
+                    >
+                        <FiZap className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    </button>
+                )
+            }
 
             {/* AI Assistant Panel */}
             <AIAssistant
@@ -696,7 +713,7 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                 isOpen={showCloudinaryModal}
                 onClose={() => setShowCloudinaryModal(false)}
             />
-        </div>
+        </div >
     );
 }
 
