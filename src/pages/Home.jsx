@@ -280,10 +280,16 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                             console.log('AI ACTION: Attempting to delete note with title:', data.title);
                             const noteToDelete = latestNotes.find(n => n.title?.toString().trim().toLowerCase() === data.title?.toString().trim().toLowerCase());
                             if (noteToDelete) {
-                                console.log('AI ACTION: Found note to delete:', noteToDelete);
-                                await notesAPI.deleteNote(noteToDelete._id || noteToDelete.id, accessToken);
-                                await loadNotes();
-                                addToast(`Note "${noteToDelete.title}" deleted`, 'success');
+                                // Check ownership - don't delete shared notes
+                                if (noteToDelete.owner_id && noteToDelete.owner_id !== user?.id) {
+                                    console.warn('AI ACTION: Cannot delete shared note:', noteToDelete.title);
+                                    addToast(`Cannot delete "${noteToDelete.title}" - this is a shared note`, 'error');
+                                } else {
+                                    console.log('AI ACTION: Found note to delete:', noteToDelete);
+                                    await notesAPI.deleteNote(noteToDelete._id || noteToDelete.id, accessToken);
+                                    await loadNotes();
+                                    addToast(`Note "${noteToDelete.title}" deleted`, 'success');
+                                }
                             } else {
                                 console.warn('AI ACTION: Note not found for deletion:', data.title);
                                 console.log('Available Notes:', latestNotes.map(n => n.title));
@@ -295,10 +301,16 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                             console.log('AI ACTION: Searching for folder', data.name, 'in', latestFolders.map(f => f.name));
                             const folderToDelete = latestFolders.find(f => f.name?.toString().trim().toLowerCase() === data.name?.toString().trim().toLowerCase());
                             if (folderToDelete) {
-                                console.log('AI ACTION: Found folder to delete', folderToDelete);
-                                const folderId = folderToDelete._id || folderToDelete.id;
-                                const moveToRoot = data.delete_contents === true ? false : true;
-                                await handleDeleteFolder(folderId, folderToDelete.name, moveToRoot);
+                                // Check ownership - don't delete shared folders
+                                if (folderToDelete.owner_id && folderToDelete.owner_id !== user?.id) {
+                                    console.warn('AI ACTION: Cannot delete shared folder:', folderToDelete.name);
+                                    addToast(`Cannot delete "${folderToDelete.name}" - this is a shared folder`, 'error');
+                                } else {
+                                    console.log('AI ACTION: Found folder to delete', folderToDelete);
+                                    const folderId = folderToDelete._id || folderToDelete.id;
+                                    const moveToRoot = data.delete_contents === true ? false : true;
+                                    await handleDeleteFolder(folderId, folderToDelete.name, moveToRoot);
+                                }
                             } else {
                                 console.warn('AI ACTION: Folder not found for deletion:', data.name);
                             }
@@ -308,14 +320,20 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                         try {
                             const note = latestNotes.find(n => n.title?.toString().trim().toLowerCase() === data.old_title?.toString().trim().toLowerCase());
                             if (note) {
-                                let updates = {};
-                                if (data.new_title) updates.title = data.new_title;
-                                if (data.new_folder) {
-                                    const folder = await ensureFolderExists(data.new_folder);
-                                    updates.folder_id = folder ? (folder._id || folder.id) : null;
+                                // Check ownership - don't update shared notes
+                                if (note.owner_id && note.owner_id !== user?.id) {
+                                    console.warn('AI ACTION: Cannot update shared note:', note.title);
+                                    addToast(`Cannot update "${note.title}" - this is a shared note`, 'error');
+                                } else {
+                                    let updates = {};
+                                    if (data.new_title) updates.title = data.new_title;
+                                    if (data.new_folder) {
+                                        const folder = await ensureFolderExists(data.new_folder);
+                                        updates.folder_id = folder ? (folder._id || folder.id) : null;
+                                    }
+                                    await handleUpdateNote(note._id || note.id, updates);
+                                    addToast(`Note "${note.title}" updated`, 'success');
                                 }
-                                await handleUpdateNote(note._id || note.id, updates);
-                                addToast(`Note "${note.title}" updated`, 'success');
                             } else {
                                 console.warn('AI ACTION: Note not found for update:', data.old_title);
                             }
@@ -325,15 +343,21 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                         try {
                             const folderToUpdate = latestFolders.find(f => f.name?.toString().trim().toLowerCase() === data.old_name?.toString().trim().toLowerCase());
                             if (folderToUpdate) {
-                                let updates = {};
-                                if (data.new_name) updates.name = data.new_name;
-                                if (data.new_parent) {
-                                    const parent = await ensureFolderExists(data.new_parent);
-                                    updates.parent_id = parent ? (parent._id || parent.id) : null;
+                                // Check ownership - don't update shared folders
+                                if (folderToUpdate.owner_id && folderToUpdate.owner_id !== user?.id) {
+                                    console.warn('AI ACTION: Cannot update shared folder:', folderToUpdate.name);
+                                    addToast(`Cannot update "${folderToUpdate.name}" - this is a shared folder`, 'error');
+                                } else {
+                                    let updates = {};
+                                    if (data.new_name) updates.name = data.new_name;
+                                    if (data.new_parent) {
+                                        const parent = await ensureFolderExists(data.new_parent);
+                                        updates.parent_id = parent ? (parent._id || parent.id) : null;
+                                    }
+                                    await foldersAPI.updateFolder(folderToUpdate._id || folderToUpdate.id, updates, accessToken);
+                                    await loadFolders();
+                                    addToast(`Folder "${folderToUpdate.name}" updated`, 'success');
                                 }
-                                await foldersAPI.updateFolder(folderToUpdate._id || folderToUpdate.id, updates, accessToken);
-                                await loadFolders();
-                                addToast(`Folder "${folderToUpdate.name}" updated`, 'success');
                             } else {
                                 console.warn('AI ACTION: Folder not found for update:', data.old_name);
                             }

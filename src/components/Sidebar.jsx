@@ -14,6 +14,7 @@ import {
     FiX,
     FiChevronRight,
     FiChevronDown,
+    FiChevronUp,
     FiShare2,
     FiMoreVertical
 } from 'react-icons/fi';
@@ -57,6 +58,7 @@ const Sidebar = ({
     const [dragOverItem, setDragOverItem] = useState(null);
     const [shareModalOpen, setShareModalOpen] = useState(false);
     const [itemToShare, setItemToShare] = useState(null);
+    const [noteOrder, setNoteOrder] = useState({}); // Track custom note order
     const [shareItemType, setShareItemType] = useState('note');
     const editInputRef = useRef(null);
 
@@ -196,6 +198,64 @@ const Sidebar = ({
     };
     const onDragEnter = (item, type) => setDragOverItem({ item, type });
     const onDragLeave = () => setDragOverItem(null);
+
+    // Drop handler for note-to-note (reordering)
+    const onDropNote = (e, targetNote) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!draggedItem || draggedItem.type !== 'note') return;
+
+        const draggedNote = draggedItem.item;
+
+        // Only reorder if in same folder
+        if (draggedNote.folder_id !== targetNote.folder_id) {
+            console.log('Notes in different folders, skipping reorder');
+            return;
+        }
+
+        const folderId = draggedNote.folder_id || 'root';
+        const folderNotes = getNotesForFolder(draggedNote.folder_id);
+
+        const draggedIndex = folderNotes.findIndex(n => n._id === draggedNote._id);
+        const targetIndex = folderNotes.findIndex(n => n._id === targetNote._id);
+
+        console.log('Reordering:', draggedNote.title, 'from', draggedIndex, 'to', targetIndex);
+        console.log('Folder notes before:', folderNotes.map(n => n.title));
+
+        // Reorder the notes
+        const newOrder = {};
+        folderNotes.forEach((note, idx) => {
+            const key = `${folderId}_${note._id}`;
+            if (note._id === draggedNote._id) {
+                newOrder[key] = targetIndex;
+            } else if (draggedIndex < targetIndex) {
+                // Moving down - shift notes up
+                if (idx > draggedIndex && idx <= targetIndex) {
+                    newOrder[key] = idx - 1;
+                } else {
+                    newOrder[key] = idx;
+                }
+            } else {
+                // Moving up - shift notes down
+                if (idx >= targetIndex && idx < draggedIndex) {
+                    newOrder[key] = idx + 1;
+                } else {
+                    newOrder[key] = idx;
+                }
+            }
+        });
+
+        console.log('New order map:', newOrder);
+        setNoteOrder(prev => {
+            const updated = { ...prev, ...newOrder };
+            console.log('Updated noteOrder state:', updated);
+            return updated;
+        });
+        setDraggedItem(null);
+        setDragOverItem(null);
+        addToast('Note reordered', 'success');
+    };
+
     const onDrop = async (e, targetFolder) => {
         e.preventDefault();
         e.stopPropagation();
@@ -247,8 +307,96 @@ const Sidebar = ({
     const ownedFolderTree = buildFolderTree(ownedFolders);
     const sharedFolderTree = buildFolderTree(sharedFolders);
 
-    const getNotesForFolder = (folderId) => notes.filter((n) => n.folder_id === folderId);
+    // Get notes for folder, sorted by custom order or created_at
+    const getNotesForFolder = (folderId) => {
+        const folderNotes = notes.filter((n) => n.folder_id === folderId);
+
+        const sorted = folderNotes.sort((a, b) => {
+            const keyA = `${folderId || 'root'}_${a._id}`;
+            const keyB = `${folderId || 'root'}_${b._id}`;
+
+            // Use custom order if available
+            if (noteOrder[keyA] !== undefined && noteOrder[keyB] !== undefined) {
+                console.log(`Sorting ${a.title}(${noteOrder[keyA]}) vs ${b.title}(${noteOrder[keyB]})`);
+                return noteOrder[keyA] - noteOrder[keyB];
+            }
+
+            // Fallback to created_at
+            return new Date(a.created_at) - new Date(b.created_at);
+        });
+
+        console.log(`getNotesForFolder(${folderId}) returning:`, sorted.map(n => n.title));
+        return sorted;
+    };
+
     const rootNotes = getNotesForFolder(null);
+
+    // Note reordering - update client-side order
+    const moveNoteUp = (note, folderNotes) => {
+        console.log('🔼 moveNoteUp called for:', note.title);
+        const currentIndex = folderNotes.findIndex(n => n._id === note._id);
+        console.log('Current index:', currentIndex, 'Total notes:', folderNotes.length);
+
+        if (currentIndex <= 0) {
+            console.log('Already at top');
+            return;
+        }
+
+        const noteAbove = folderNotes[currentIndex - 1];
+        console.log('Swapping with:', noteAbove.title);
+
+        // Update order map
+        const folderId = note.folder_id || 'root';
+        const newOrder = {};
+
+        folderNotes.forEach((n, idx) => {
+            const key = `${folderId}_${n._id}`;
+            if (n._id === note._id) {
+                newOrder[key] = currentIndex - 1;
+            } else if (n._id === noteAbove._id) {
+                newOrder[key] = currentIndex;
+            } else {
+                newOrder[key] = idx;
+            }
+        });
+
+        setNoteOrder(prev => ({ ...prev, ...newOrder }));
+        addToast('Note moved up', 'success');
+        console.log('✅ Moved up');
+    };
+
+    const moveNoteDown = (note, folderNotes) => {
+        console.log('🔽 moveNoteDown called for:', note.title);
+        const currentIndex = folderNotes.findIndex(n => n._id === note._id);
+        console.log('Current index:', currentIndex, 'Total notes:', folderNotes.length);
+
+        if (currentIndex >= folderNotes.length - 1) {
+            console.log('Already at bottom');
+            return;
+        }
+
+        const noteBelow = folderNotes[currentIndex + 1];
+        console.log('Swapping with:', noteBelow.title);
+
+        // Update order map
+        const folderId = note.folder_id || 'root';
+        const newOrder = {};
+
+        folderNotes.forEach((n, idx) => {
+            const key = `${folderId}_${n._id}`;
+            if (n._id === note._id) {
+                newOrder[key] = currentIndex + 1;
+            } else if (n._id === noteBelow._id) {
+                newOrder[key] = currentIndex;
+            } else {
+                newOrder[key] = idx;
+            }
+        });
+
+        setNoteOrder(prev => ({ ...prev, ...newOrder }));
+        addToast('Note moved down', 'success');
+        console.log('✅ Moved down');
+    };
 
     // Compute existing names for duplicate folder validation
     const currentParentId = selectedFolder ? selectedFolder._id || selectedFolder.id : null;
@@ -332,6 +480,11 @@ const Sidebar = ({
                                 setNoteToDelete={setNoteToDelete}
                                 setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                                 authUser={user}
+                                moveNoteUp={moveNoteUp}
+                                moveNoteDown={moveNoteDown}
+                                onDropNote={onDropNote}
+                                noteOrder={noteOrder}
+                                getNotesForFolder={getNotesForFolder}
                             />
                         ))}
                     </div>
@@ -377,6 +530,11 @@ const Sidebar = ({
                                 setNoteToDelete={setNoteToDelete}
                                 setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                                 authUser={user}
+                                moveNoteUp={moveNoteUp}
+                                moveNoteDown={moveNoteDown}
+                                onDropNote={onDropNote}
+                                noteOrder={noteOrder}
+                                getNotesForFolder={getNotesForFolder}
                             />
                         ))}
                     </div>
@@ -417,6 +575,10 @@ const Sidebar = ({
                                                 setNoteToDelete={setNoteToDelete}
                                                 setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                                                 authUser={user}
+                                                onMoveUp={() => moveNoteUp(note, myRootNotes)}
+                                                onMoveDown={() => moveNoteDown(note, myRootNotes)}
+                                                folderNotes={myRootNotes}
+                                                onDropNote={onDropNote}
                                             />
                                         ))}
                                     </div>
@@ -595,13 +757,18 @@ const FolderNode = ({
     openDeleteModal,
     setNoteToDelete,
     setDeleteNoteModalOpen,
-    authUser // Current logged-in user
+    authUser, // Current logged-in user
+    moveNoteUp,
+    moveNoteDown,
+    onDropNote,
+    noteOrder,
+    getNotesForFolder
 }) => {
     const folderId = folder._id || folder.id;
     const isExpanded = expandedFolders.has(folderId);
     const isEditing = editingId === `folder-${folderId}`;
     const isSelected = (selectedFolder?._id || selectedFolder?.id) === folderId;
-    const folderNotes = notes.filter((n) => n.folder_id === folderId);
+    const folderNotes = getNotesForFolder(folderId); // Use the sorted getter function!
     const isDragOver = dragOverItem?.type === 'folder' && (dragOverItem?.item?._id || dragOverItem?.item?.id) === folderId;
 
     return (
@@ -719,6 +886,11 @@ const FolderNode = ({
                             setNoteToDelete={setNoteToDelete}
                             setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                             authUser={authUser}
+                            moveNoteUp={moveNoteUp}
+                            moveNoteDown={moveNoteDown}
+                            onDropNote={onDropNote}
+                            noteOrder={noteOrder}
+                            getNotesForFolder={getNotesForFolder}
                         />
                     ))}
                     {/* Notes inside this folder */}
@@ -743,6 +915,10 @@ const FolderNode = ({
                             setNoteToDelete={setNoteToDelete}
                             setDeleteNoteModalOpen={setDeleteNoteModalOpen}
                             authUser={authUser}
+                            onMoveUp={() => moveNoteUp(note, folderNotes)}
+                            onMoveDown={() => moveNoteDown(note, folderNotes)}
+                            folderNotes={folderNotes}
+                            onDropNote={onDropNote}
                         />
                     ))}
                 </div>
@@ -770,7 +946,11 @@ const NoteItem = ({
     startEditing,
     setNoteToDelete,
     setDeleteNoteModalOpen,
-    authUser  // Current logged-in user
+    authUser,  // Current logged-in user
+    onMoveUp,
+    onMoveDown,
+    folderNotes,
+    onDropNote
 }) => {
     const isEditing = editingId === `note-${note._id}`;
     const isSelected = selectedNote?._id === note._id;
@@ -782,6 +962,13 @@ const NoteItem = ({
             draggable={!isEditing && !isSharedWithMe}
             onDragStart={(e) => !isSharedWithMe && onDragStart(e, note, 'note')}
             onDragEnd={onDragEnd}
+            onDragOver={(e) => {
+                if (!isSharedWithMe && onDropNote) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            }}
+            onDrop={(e) => !isSharedWithMe && onDropNote && onDropNote(e, note)}
             onContextMenu={(e) => onContextMenu(e, note, 'note')}
             onClick={() => !isEditing && onSelect(note)}
             className={`flex items-center py-1.5 px-2 cursor-pointer group rounded-md transition-colors ${isSelected
@@ -838,6 +1025,27 @@ const NoteItem = ({
                     </>
                 ) : (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Reorder buttons - only for owned notes in folders */}
+                        {isOwner && !isSharedWithMe && folderNotes && folderNotes.length > 1 && (
+                            <>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+                                    disabled={folderNotes.findIndex(n => n._id === note._id) === 0}
+                                    className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Move up"
+                                >
+                                    <FiChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+                                    disabled={folderNotes.findIndex(n => n._id === note._id) === folderNotes.length - 1}
+                                    className="text-gray-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Move down"
+                                >
+                                    <FiChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                            </>
+                        )}
                         {/* Only show edit/delete/share if user owns the note */}
                         {isOwner && !isSharedWithMe && (
                             <>

@@ -282,9 +282,9 @@ const AIAssistant = ({
 
         // Helper to strip COMMAND lines from display
         const stripCommands = (text) => {
-            const commandRegex = /.*COMMAND:[A-Z_]+:.*/g;
+            // Remove any line that contains COMMAND:
             return text.split('\n')
-                .filter(line => !commandRegex.test(line))
+                .filter(line => !line.includes('COMMAND:'))
                 .join('\n')
                 .trim();
         };
@@ -330,9 +330,8 @@ const AIAssistant = ({
             setStreamingMessageId(null);
 
             // Strip COMMAND: lines from display
-            const commandRegex = /.*COMMAND:[A-Z_]+:.*/;
             const displayMessage = fullResponseRef.current.split('\n')
-                .filter(line => !commandRegex.test(line))
+                .filter(line => !line.includes('COMMAND:'))
                 .join('\n')
                 .trim();
 
