@@ -1049,21 +1049,19 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
                 >
                     <EditorContent editor={editor} className="h-full" />
 
-                    {/* Floating selection menu */}
-                    {!readOnly && (
-                        <FloatingMenu
-                            editor={editor}
-                            onLinkClick={() => {
-                                const { from, to } = editor.state.selection;
-                                const text = editor.state.doc.textBetween(from, to, ' ');
-                                const url = editor.getAttributes('customLink').href || '';
-                                setLinkData({ url, text });
-                                setShowLinkModal(true);
-                            }}
-                            onAskAI={onAskAI}
-                            onDeleteImage={() => setShowDeleteImageConfirm(true)}
-                        />
-                    )}
+                    {/* Floating selection menu - always show for Ask AI on shared notes */}
+                    <FloatingMenu
+                        editor={editor}
+                        onLinkClick={!readOnly ? () => {
+                            const { from, to } = editor.state.selection;
+                            const text = editor.state.doc.textBetween(from, to, ' ');
+                            const url = editor.getAttributes('customLink').href || '';
+                            setLinkData({ url, text });
+                            setShowLinkModal(true);
+                        } : null}
+                        onAskAI={onAskAI}
+                        onDeleteImage={!readOnly ? () => setShowDeleteImageConfirm(true) : null}
+                    />
 
                     {/* Resize Handle - Only show when resize is enabled */}
                     {!readOnly && resizeEnabled && (

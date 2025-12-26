@@ -87,6 +87,12 @@ const Sidebar = ({
     }, []);
 
     const handleCreateFolder = async (name) => {
+        // Check if user has database configured
+        if (!user?.has_database) {
+            addToast('You need to configure your MongoDB database in Settings before creating folders.', 'error');
+            return;
+        }
+
         try {
             const folderData = { name };
             if (selectedFolder) folderData.parent_id = selectedFolder._id || selectedFolder.id;
@@ -785,6 +791,7 @@ const FolderNode = ({
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, folder)}
                 onContextMenu={(e) => onContextMenu(e, folder, 'folder')}
+                title={folder.name}
                 className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer transition-colors group ${isSelected
                     ? 'bg-indigo-100 dark:bg-indigo-900/30'
                     : isDragOver
@@ -819,7 +826,7 @@ const FolderNode = ({
                         className="flex-1 px-1 py-0.5 text-sm bg-white dark:bg-gray-600 border border-indigo-500 rounded outline-none"
                     />
                 ) : (
-                    <span className={`flex-1 ${isSelected ? 'font-medium' : ''}`}>{folder.name}</span>
+                    <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`} title={folder.name}>{folder.name}</span>
                 )}
                 {/* Actions */}
                 {isEditing ? (
@@ -974,6 +981,7 @@ const NoteItem = ({
             onDrop={(e) => !isSharedWithMe && onDropNote && onDropNote(e, note)}
             onContextMenu={(e) => onContextMenu(e, note, 'note')}
             onClick={() => !isEditing && onSelect(note)}
+            title={note.title || 'Untitled'}
             className={`flex items-center py-1.5 px-2 cursor-pointer group rounded-md transition-colors ${isSelected
                 ? isSharedWithMe
                     ? 'bg-purple-100 dark:bg-purple-900/30'
@@ -1004,7 +1012,7 @@ const NoteItem = ({
                     className="flex-1 px-1 py-0.5 text-sm bg-white dark:bg-gray-600 border border-indigo-500 rounded outline-none"
                 />
             ) : (
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" title={note.title || 'Untitled'}>
                     <span className={`block truncate ${isSharedWithMe ? 'text-purple-700 dark:text-purple-300' : ''}`}>
                         {note.title || 'Untitled'}
                     </span>

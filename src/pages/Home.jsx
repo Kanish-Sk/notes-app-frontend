@@ -71,8 +71,8 @@ function Home() {
     };
 
     const handleCreateNote = async (folder = null, title = null, content = null) => {
-        // Check if user has database configured and has no notes (first note)
-        if (user && !user.has_database && notes.length === 0) {
+        // Check if user has database configured
+        if (user && !user.has_database) {
             // Store the folder for later use after MongoDB setup
             setPendingNoteCreation(folder);
             setShowMongoModal(true);
