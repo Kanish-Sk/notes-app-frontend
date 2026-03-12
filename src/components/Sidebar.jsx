@@ -60,7 +60,26 @@ const Sidebar = ({
     const [itemToShare, setItemToShare] = useState(null);
     const [noteOrder, setNoteOrder] = useState({}); // Track custom note order
     const [shareItemType, setShareItemType] = useState('note');
+    const [sidebarWidth, setSidebarWidth] = useState(256);
+    const isResizing = useRef(false);
     const editInputRef = useRef(null);
+
+    const handleResizeMouseDown = (e) => {
+        e.preventDefault();
+        isResizing.current = true;
+        const onMouseMove = (e) => {
+            if (!isResizing.current) return;
+            const newWidth = Math.min(480, Math.max(200, e.clientX));
+            setSidebarWidth(newWidth);
+        };
+        const onMouseUp = () => {
+            isResizing.current = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
 
     // Focus edit input when editing starts
     useEffect(() => {
@@ -87,12 +106,6 @@ const Sidebar = ({
     }, []);
 
     const handleCreateFolder = async (name) => {
-        // Check if user has database configured
-        if (!user?.has_database) {
-            addToast('You need to configure your MongoDB database in Settings before creating folders.', 'error');
-            return;
-        }
-
         try {
             const folderData = { name };
             if (selectedFolder) folderData.parent_id = selectedFolder._id || selectedFolder.id;
@@ -411,7 +424,13 @@ const Sidebar = ({
         .map((f) => f.name);
 
     return (
-        <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col">
+        <div className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col flex-shrink-0" style={{ width: `${sidebarWidth}px` }}>
+            {/* Resize handle */}
+            <div
+                onMouseDown={handleResizeMouseDown}
+                className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-indigo-400 active:bg-indigo-500 transition-colors z-10"
+                title="Drag to resize"
+            />
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <div className="flex items-center gap-2">

@@ -166,10 +166,6 @@ const Login = () => {
               </div>
               <div className="flex gap-2">
                 <span className="text-purple-400 font-bold">2.</span>
-                <div><span className="text-white font-semibold">MongoDB:</span> <span className="text-white/60">Free cluster on MongoDB Atlas for data storage</span></div>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-purple-400 font-bold">3.</span>
                 <div><span className="text-white font-semibold">Cloudinary:</span> <span className="text-white/60">Free account for image hosting in notes</span></div>
               </div>
             </div>

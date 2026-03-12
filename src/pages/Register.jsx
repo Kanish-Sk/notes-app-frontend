@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiAlertCircle, FiCheck, FiDatabase } from 'react-icons/fi';
+import { FiMail, FiLock, FiUser, FiEye, FiEyeOff, FiAlertCircle } from 'react-icons/fi';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { mongodbAPI, API_BASE_URL } from '../services/api';
+import { API_BASE_URL } from '../services/api';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -12,16 +12,11 @@ const Register = () => {
         email: '',
         password: '',
         confirmPassword: '',
-        mongodbConnectionString: ''
     });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [verifyingMongo, setVerifyingMongo] = useState(false);
-    const [mongoVerified, setMongoVerified] = useState(false);
-    const [mongoError, setMongoError] = useState('');
-    const [showMongoField, setShowMongoField] = useState(false);
 
     const { login } = useAuth();
     const { addToast } = useToast();
@@ -54,28 +49,6 @@ const Register = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleVerifyMongo = async () => {
-        if (!formData.mongodbConnectionString.trim()) {
-            setMongoError('Please enter a connection string');
-            return;
-        }
-        setVerifyingMongo(true);
-        setMongoError('');
-        try {
-            const response = await mongodbAPI.verifyConnection(formData.mongodbConnectionString);
-            if (response.data.success) {
-                setMongoVerified(true);
-                addToast('MongoDB verified!', 'success');
-            } else {
-                setMongoError(response.data.message);
-            }
-        } catch {
-            setMongoError('Failed to verify');
-        } finally {
-            setVerifyingMongo(false);
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -87,10 +60,6 @@ const Register = () => {
             setError('Password must be at least 8 characters');
             return;
         }
-        if (showMongoField && formData.mongodbConnectionString && !mongoVerified) {
-            setError('Please verify MongoDB connection');
-            return;
-        }
         setLoading(true);
         try {
             const requestBody = {
@@ -98,7 +67,6 @@ const Register = () => {
                 password: formData.password,
                 full_name: formData.fullName
             };
-            if (mongoVerified) requestBody.mongodb_connection_string = formData.mongodbConnectionString;
             const response = await fetch(`${API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -265,42 +233,6 @@ const Register = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <button type="button" onClick={() => setShowMongoField(!showMongoField)} className="flex items-center gap-2 text-white/50 text-sm hover:text-white/70">
-                                        <FiDatabase size={14} />
-                                        <span>{showMongoField ? 'Hide' : 'Add'} MongoDB (optional but recommended)</span>
-                                    </button>
-                                    <div className="group relative">
-                                        <FiAlertCircle className="text-white/40 cursor-help" size={14} />
-                                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg z-10">
-                                            Without MongoDB, you won't be able to create or save notes
-                                            <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {showMongoField && (
-                                    <div className="space-y-2">
-                                        <input
-                                            type="text"
-                                            name="mongodbConnectionString"
-                                            value={formData.mongodbConnectionString}
-                                            onChange={handleChange}
-                                            className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl py-2 px-3 text-white text-xs placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                                            placeholder="mongodb+srv://..."
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleVerifyMongo}
-                                            disabled={verifyingMongo}
-                                            className="w-full py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white text-xs hover:bg-white/[0.1] disabled:opacity-50 flex items-center justify-center gap-2"
-                                        >
-                                            {verifyingMongo ? 'Verifying...' : mongoVerified ? <><FiCheck className="text-green-400" size={12} /> Verified</> : 'Verify'}
-                                        </button>
-                                        {mongoError && <p className="text-red-300 text-xs">{mongoError}</p>}
-                                    </div>
-                                )}
-
                                 <button
                                     type="submit"
                                     disabled={loading}
@@ -384,13 +316,6 @@ const Register = () => {
                             </div>
                             <div className="flex gap-2">
                                 <span className="text-purple-400 font-bold">2.</span>
-                                <div>
-                                    <span className="text-white font-semibold">MongoDB Database:</span>
-                                    <span className="text-white/60"> Create a free cluster on MongoDB Atlas to securely store all your notes, folders, user data, and collaborate with your team in real-time.</span>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <span className="text-purple-400 font-bold">3.</span>
                                 <div>
                                     <span className="text-white font-semibold">Cloudinary Account:</span>
                                     <span className="text-white/60"> Sign up for free image hosting to upload and manage screenshots, diagrams, and images directly within your notes.</span>

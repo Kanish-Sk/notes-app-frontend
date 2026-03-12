@@ -198,16 +198,4 @@ export const foldersAPI = {
         api.delete(`/folders/${folderId}/shares/${encodeURIComponent(email)}`, { headers: createAuthHeaders(token) }),
 };
 
-// MongoDB API
-export const mongodbAPI = {
-    verifyConnection: (connectionString) =>
-        api.post("/verify-mongodb", { connection_string: connectionString }),
-    updateUserDatabase: (connectionString, token) =>
-        api.post(
-            "/user/update-database",
-            { connection_string: connectionString },
-            { headers: createAuthHeaders(token) }
-        ),
-};
-
 export default api;
