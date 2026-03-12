@@ -858,7 +858,7 @@ const FolderNode = ({
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className={`flex items-center gap-1 transition-opacity ${isSelected || isDragOver ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         {/* Only show edit/delete/share/add if user owns the folder (or if we can't determine ownership) */}
                         {(!folder.user_id || !authUser || folder.user_id === (authUser.id || authUser._id)) && (
                             <>
@@ -1054,7 +1054,7 @@ const NoteItem = ({
                         </button>
                     </>
                 ) : (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className={`flex items-center gap-1 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         {/* Reorder buttons - only for owned notes in folders */}
                         {isOwner && !isSharedWithMe && folderNotes && folderNotes.length > 1 && (
                             <>
