@@ -1,5 +1,5 @@
 // Sidebar.jsx – Note sharing feature with clean UI and proper styling
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import {
     FiPlus,
     FiFileText,
@@ -98,6 +98,23 @@ const Sidebar = ({
         }
     }, [folders]);
 
+    // Auto-expand folder of the selected note and clear any folder selection
+    useEffect(() => {
+        if (selectedNote?.folder_id) {
+            const ancestorIds = new Set();
+            let currentId = selectedNote.folder_id;
+            while (currentId) {
+                ancestorIds.add(currentId);
+                const parent = folders.find(f => (f._id || f.id) === currentId);
+                currentId = parent?.parent_id || null;
+            }
+            if (ancestorIds.size > 0) {
+                setExpandedFolders(prev => new Set([...prev, ...ancestorIds]));
+            }
+            setSelectedFolder(null);
+        }
+    }, [selectedNote?._id, folders]);
+
     // Close context menu on outside click
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
@@ -149,6 +166,26 @@ const Sidebar = ({
         if (onCreateNote) onCreateNote(selectedFolder);
     };
 
+
+
+    const handleSelectNote = (note) => {
+        setSelectedFolder(null);
+        onSelectNote(note);
+    };
+
+    // Compute ancestor folder IDs of the currently selected note
+    const activeNoteFolderIds = useMemo(() => {
+        const ids = new Set();
+        if (selectedNote?.folder_id) {
+            let currentId = selectedNote.folder_id;
+            while (currentId) {
+                ids.add(currentId);
+                const parent = folders.find(f => (f._id || f.id) === currentId);
+                currentId = parent?.parent_id || null;
+            }
+        }
+        return ids;
+    }, [selectedNote?._id, folders]);
 
 
     const toggleFolder = (folderId) => {
@@ -491,7 +528,7 @@ const Sidebar = ({
                                 selectedNote={selectedNote}
                                 onToggle={toggleFolder}
                                 onSelect={setSelectedFolder}
-                                onSelectNote={onSelectNote}
+                                onSelectNote={handleSelectNote}
                                 onContextMenu={handleContextMenu}
                                 onSave={saveEditing}
                                 onCancel={cancelEditing}
@@ -513,6 +550,8 @@ const Sidebar = ({
                                 onDropNote={onDropNote}
                                 noteOrder={noteOrder}
                                 getNotesForFolder={getNotesForFolder}
+                                activeNoteFolderIds={activeNoteFolderIds}
+
                             />
                         ))}
                     </div>
@@ -541,7 +580,7 @@ const Sidebar = ({
                                 selectedNote={selectedNote}
                                 onToggle={toggleFolder}
                                 onSelect={setSelectedFolder}
-                                onSelectNote={onSelectNote}
+                                onSelectNote={handleSelectNote}
                                 onContextMenu={handleContextMenu}
                                 onSave={saveEditing}
                                 onCancel={cancelEditing}
@@ -563,6 +602,8 @@ const Sidebar = ({
                                 onDropNote={onDropNote}
                                 noteOrder={noteOrder}
                                 getNotesForFolder={getNotesForFolder}
+                                activeNoteFolderIds={activeNoteFolderIds}
+
                             />
                         ))}
                     </div>
@@ -592,7 +633,7 @@ const Sidebar = ({
                                                 editingName={editingName}
                                                 setEditingName={setEditingName}
                                                 editInputRef={editInputRef}
-                                                onSelect={onSelectNote}
+                                                onSelect={handleSelectNote}
                                                 onContextMenu={handleContextMenu}
                                                 onSave={saveEditing}
                                                 onCancel={cancelEditing}
@@ -631,7 +672,7 @@ const Sidebar = ({
                                                 editingName={editingName}
                                                 setEditingName={setEditingName}
                                                 editInputRef={editInputRef}
-                                                onSelect={onSelectNote}
+                                                onSelect={handleSelectNote}
                                                 onContextMenu={handleContextMenu}
                                                 onSave={saveEditing}
                                                 onCancel={cancelEditing}
@@ -790,13 +831,15 @@ const FolderNode = ({
     moveNoteDown,
     onDropNote,
     noteOrder,
-    getNotesForFolder
+    getNotesForFolder,
+    activeNoteFolderIds
 }) => {
     const folderId = folder._id || folder.id;
     const isExpanded = expandedFolders.has(folderId);
     const isEditing = editingId === `folder-${folderId}`;
-    const isSelected = (selectedFolder?._id || selectedFolder?.id) === folderId;
-    const folderNotes = getNotesForFolder(folderId); // Use the sorted getter function!
+    const isSelected = !selectedNote && (selectedFolder?._id || selectedFolder?.id) === folderId;
+    const isActiveAncestor = activeNoteFolderIds?.has(folderId);
+    const folderNotes = getNotesForFolder(folderId);
     const isDragOver = dragOverItem?.type === 'folder' && (dragOverItem?.item?._id || dragOverItem?.item?.id) === folderId;
 
     return (
@@ -811,7 +854,7 @@ const FolderNode = ({
                 onDrop={(e) => onDrop(e, folder)}
                 onContextMenu={(e) => onContextMenu(e, folder, 'folder')}
                 title={folder.name}
-                className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer transition-colors group ${isSelected
+                className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer transition-colors group ${isSelected || isActiveAncestor
                     ? 'bg-indigo-100 dark:bg-indigo-900/30'
                     : isDragOver
                         ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-2 ring-indigo-400'
