@@ -173,6 +173,15 @@ export const settingsAPI = {
 export const foldersAPI = {
     getAllFolders: (token) =>
         api.get("/folders", { headers: createAuthHeaders(token) }),
+    // Top-level folders only
+    getRootFolders: (token) =>
+        api.get("/folders?root_only=true", { headers: createAuthHeaders(token) }),
+    // Direct children of one folder
+    getChildFolders: (parentId, token) =>
+        api.get(`/folders?parent_id=${parentId}`, { headers: createAuthHeaders(token) }),
+    // A folder plus all its ancestors, root-first
+    getFolderAncestors: (folderId, token) =>
+        api.get(`/folders/ancestors/${folderId}`, { headers: createAuthHeaders(token) }),
     createFolder: (folderData, token) =>
         api.post("/folders", folderData, { headers: createAuthHeaders(token) }),
     updateFolder: (id, folderData, token) =>

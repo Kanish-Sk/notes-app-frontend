@@ -21,6 +21,9 @@ function Home() {
     const [settingsUpdateTrigger, setSettingsUpdateTrigger] = useState(0);
     const [showCloudinaryModal, setShowCloudinaryModal] = useState(false);
     const [askAIText, setAskAIText] = useState(null);
+    const [loadError, setLoadError] = useState(null);
+    const [loadedFolderIds, setLoadedFolderIds] = useState(new Set());
+    const loadedFolderIdsRef = React.useRef(new Set());
 
     const { accessToken, user } = useAuth();
     const { addToast } = useToast();
@@ -34,10 +37,13 @@ function Home() {
         }
     }, [accessToken]);
 
+    // Only top-level folders on mount; children arrive as folders are expanded.
     const loadFolders = async () => {
         try {
-            const response = await foldersAPI.getAllFolders(accessToken);
+            const response = await foldersAPI.getRootFolders(accessToken);
             setFolders(response.data);
+            loadedFolderIdsRef.current = new Set();
+            setLoadedFolderIds(new Set());
         } catch (err) {
             console.error('Failed to load folders', err);
         }
@@ -45,25 +51,82 @@ function Home() {
 
     const loadNotes = async () => {
         try {
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-            );
-            const apiPromise = notesAPI.getAllNotes(accessToken);
-
-            const response = await Promise.race([apiPromise, timeoutPromise]);
+            setLoadError(null);
+            // Metadata only; ordered by updated_at DESC server-side.
+            const response = await notesAPI.getAllNotes(accessToken);
             setNotes(response.data);
 
-            // Always select the first note on load if none is selected or selected note is missing
+            // Open the most recently edited note if nothing valid is selected.
             if (response.data.length > 0) {
                 const currentNoteExists = response.data.find(n => n._id === selectedNote?._id);
                 if (!selectedNote || !currentNoteExists) {
-                    setSelectedNote(response.data[0]);
+                    handleSelectNote(response.data[0]);
                 }
             }
         } catch (error) {
             console.error('Error loading notes:', error);
+            // Surface the failure — an empty list must not read as "no notes yet".
+            setLoadError('Could not load your notes.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Fetch a folder's direct children — subfolders and notes — on first expand.
+    const loadFolderChildren = async (folderId) => {
+        // Ref guard, not state: concurrent callers must see the claim immediately.
+        if (!folderId || loadedFolderIdsRef.current.has(folderId)) return;
+        loadedFolderIdsRef.current.add(folderId);
+        setLoadedFolderIds((prev) => new Set(prev).add(folderId));
+        try {
+            const [notesRes, foldersRes] = await Promise.all([
+                notesAPI.getAllNotes(accessToken, folderId),
+                foldersAPI.getChildFolders(folderId, accessToken),
+            ]);
+
+            setNotes((prev) => {
+                const byId = new Map(prev.map((n) => [n._id, n]));
+                // Keep any already-fetched content rather than overwriting with metadata.
+                notesRes.data.forEach((n) => {
+                    const existing = byId.get(n._id);
+                    byId.set(n._id, existing?.content ? { ...n, content: existing.content } : n);
+                });
+                return Array.from(byId.values());
+            });
+
+            setFolders((prev) => {
+                const byId = new Map(prev.map((f) => [f._id || f.id, f]));
+                foldersRes.data.forEach((f) => byId.set(f._id || f.id, f));
+                return Array.from(byId.values());
+            });
+        } catch (error) {
+            console.error('Error loading folder children:', error);
+            loadedFolderIdsRef.current.delete(folderId);
+            setLoadedFolderIds((prev) => {
+                const next = new Set(prev);
+                next.delete(folderId);   // allow a retry
+                return next;
+            });
+        }
+    };
+
+    // Load the ancestor chain for a folder so the sidebar can reveal it,
+    // plus each level's children so the expanded path renders fully.
+    const revealFolderPath = async (folderId) => {
+        if (!folderId) return [];
+        try {
+            const { data: chain } = await foldersAPI.getFolderAncestors(folderId, accessToken);
+            setFolders((prev) => {
+                const byId = new Map(prev.map((f) => [f._id || f.id, f]));
+                chain.forEach((f) => byId.set(f._id || f.id, f));
+                return Array.from(byId.values());
+            });
+            // Fetch the contents of every folder along the path.
+            await Promise.all(chain.map((f) => loadFolderChildren(f._id || f.id)));
+            return chain.map((f) => f._id || f.id);
+        } catch (error) {
+            console.error('Error revealing folder path:', error);
+            return [];
         }
     };
 
@@ -116,8 +179,20 @@ function Home() {
         }
     };
 
-    const handleSelectNote = (note) => {
+    const handleSelectNote = async (note) => {
+        // List responses carry metadata only — fetch the body on demand.
         setSelectedNote(note);
+        // Make sure the note's folder chain is loaded so the sidebar can reveal it.
+        if (note.folder_id) revealFolderPath(note.folder_id);
+        try {
+            const response = await notesAPI.getNote(note._id, accessToken);
+            setSelectedNote((current) =>
+                current?._id === note._id ? response.data : current
+            );
+        } catch (error) {
+            console.error('Error loading note content:', error);
+            addToast('Failed to load note content', 'error');
+        }
     };
 
     const handleUpdateNote = async (id, updates) => {
@@ -615,6 +690,10 @@ DO NOT include the rest of the document. ONLY return the edited selection.`;
                     onFoldersChanged={loadFolders}
                     onDeleteFolder={handleDeleteFolder}
                     onOpenSettings={() => setShowSettings(true)}
+                    onLoadFolderNotes={loadFolderChildren}
+                    loading={loading}
+                    loadError={loadError}
+                    onRetryLoad={loadNotes}
                 />
 
                 {/* Editor */}

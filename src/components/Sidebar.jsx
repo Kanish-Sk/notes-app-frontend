@@ -39,6 +39,10 @@ const Sidebar = ({
     onNotesChanged,
     onFoldersChanged,
     onDeleteFolder,
+    onLoadFolderNotes,
+    loading,
+    loadError,
+    onRetryLoad,
 }) => {
     const { isDark, toggleTheme } = useTheme();
     const { user, accessToken, logout } = useAuth();
@@ -98,12 +102,15 @@ const Sidebar = ({
         }
     }, [folders]);
 
-    // Auto-expand folder of the selected note and clear any folder selection
+    // Auto-expand the selected note's folder chain. Ancestors are fetched
+    // lazily, so walk as far as `folders` allows and re-run as more arrive.
     useEffect(() => {
         if (selectedNote?.folder_id) {
             const ancestorIds = new Set();
             let currentId = selectedNote.folder_id;
-            while (currentId) {
+            const seen = new Set();
+            while (currentId && !seen.has(currentId)) {
+                seen.add(currentId);
                 ancestorIds.add(currentId);
                 const parent = folders.find(f => (f._id || f.id) === currentId);
                 currentId = parent?.parent_id || null;
@@ -137,7 +144,12 @@ const Sidebar = ({
         }
     };
 
-    const openDeleteModal = (folder) => {
+    const openDeleteModal = async (folder) => {
+        // hasChildren is computed from loaded data — make sure this folder's
+        // children are fetched, or an unexpanded folder looks empty.
+        if (onLoadFolderNotes) {
+            await onLoadFolderNotes(folder._id || folder.id);
+        }
         setFolderToDelete(folder);
         setDeleteModalOpen(true);
         setContextMenu(null);
@@ -189,6 +201,9 @@ const Sidebar = ({
 
 
     const toggleFolder = (folderId) => {
+        if (!expandedFolders.has(folderId) && onLoadFolderNotes) {
+            onLoadFolderNotes(folderId);
+        }
         setExpandedFolders((prev) => {
             const newSet = new Set(prev);
             newSet.has(folderId) ? newSet.delete(folderId) : newSet.add(folderId);
@@ -347,8 +362,9 @@ const Sidebar = ({
         });
         foldersToUse.forEach((f) => {
             const id = f._id || f.id;
-            if (f.parent_id && map[f.parent_id]) {
-                map[f.parent_id].children.push(map[id]);
+            if (f.parent_id) {
+                // Parent not fetched yet — hide rather than promote it to a root.
+                if (map[f.parent_id]) map[f.parent_id].children.push(map[id]);
             } else {
                 roots.push(map[id]);
             }
@@ -385,7 +401,6 @@ const Sidebar = ({
         return sorted;
     };
 
-    const rootNotes = getNotesForFolder(null);
 
     // Note reordering - update client-side order
     const moveNoteUp = (note, folderNotes) => {
@@ -610,7 +625,8 @@ const Sidebar = ({
                 )}
                 {/* Root notes - separate owned and shared */}
                 {(() => {
-                    const myRootNotes = rootNotes.filter(n => !n.is_shared);
+                    // My Notes lists only notes at the root — notes inside folders render in their folder.
+                    const myRootNotes = notes.filter(n => !n.is_shared && !n.folder_id);
                     // Only show shared notes that are NOT in folders (to avoid duplication)
                     const sharedNotes = notes.filter(n => n.is_shared && !n.folder_id);
 
@@ -619,7 +635,16 @@ const Sidebar = ({
                             {/* My Notes Section */}
                             <div className="mt-4">
                                 <h2 className="px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">My Notes</h2>
-                                {myRootNotes.length === 0 ? (
+                                {loading ? (
+                                    <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">Loading notes…</div>
+                                ) : loadError ? (
+                                    <div className="p-4 text-center text-sm">
+                                        <p className="text-red-600 dark:text-red-400 mb-2">{loadError}</p>
+                                        <button onClick={onRetryLoad} className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                                            Retry
+                                        </button>
+                                    </div>
+                                ) : myRootNotes.length === 0 ? (
                                     <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No notes yet. Create one!</div>
                                 ) : (
                                     <div className="space-y-1">
