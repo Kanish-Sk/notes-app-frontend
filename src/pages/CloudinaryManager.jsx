@@ -3,6 +3,7 @@ import { FiImage, FiTrash2, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 const CloudinaryManager = () => {
     const { accessToken } = useAuth();
@@ -16,9 +17,8 @@ const CloudinaryManager = () => {
     const loadImages = async () => {
         setLoading(true);
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
             const response = await axios.get(
-                `${API_URL}/api/cloudinary/images`,
+                `${API_BASE_URL}/cloudinary/images`,
                 {
                     headers: { Authorization: `Bearer ${accessToken}` }
                 }
@@ -45,9 +45,8 @@ const CloudinaryManager = () => {
 
         setDeleting(imageUrl);
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
             const response = await axios.delete(
-                `${API_URL}/api/cloudinary/image`,
+                `${API_BASE_URL}/cloudinary/image`,
                 {
                     params: { image_url: imageUrl },
                     headers: { Authorization: `Bearer ${accessToken}` }

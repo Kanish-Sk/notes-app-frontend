@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Get API URL from environment variable, with fallback to localhost for development
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 // Ensure the URL ends with /api
 export const API_BASE_URL = API_URL.endsWith("/api")
     ? API_URL
@@ -83,7 +83,7 @@ export const aiAPI = {
 
     // Streaming chat using Server-Sent Events
     chatStream: (message, currentContent, editMode, token, history = [], onChunk, onComplete, onError) => {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
         const url = `${API_URL}/api/ai/chat/stream`;
 
         // Use fetch with streaming for maximum control
