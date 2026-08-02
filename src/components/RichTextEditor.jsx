@@ -26,6 +26,7 @@ import { HiOutlineColorSwatch } from 'react-icons/hi';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 // Confirmation Modal Component
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
@@ -773,9 +774,8 @@ const RichTextEditor = forwardRef(({ noteId, content, onChange, placeholder = 'S
         // If it's a Cloudinary image, delete from Cloudinary too
         if (imageUrl && imageUrl.includes('cloudinary.com')) {
             try {
-                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
                 await axios.delete(
-                    `${API_URL}/api/cloudinary/image`,
+                    `${API_BASE_URL}/cloudinary/image`,
                     {
                         params: { image_url: imageUrl },
                         headers: { Authorization: `Bearer ${accessToken}` }

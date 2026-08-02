@@ -3,6 +3,7 @@ import { FiX, FiAlertCircle, FiCheckCircle, FiEye, FiEyeOff } from 'react-icons/
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 const CloudinarySettingsModal = ({ isOpen, onClose, onSuccess }) => {
     const { user, accessToken, updateUser } = useAuth();
@@ -47,11 +48,9 @@ const CloudinarySettingsModal = ({ isOpen, onClose, onSuccess }) => {
         setTestPassed(false);
 
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
             // Call backend to test credentials (no CORS issues!)
             const response = await axios.post(
-                `${API_URL}/api/test-cloudinary`,
+                `${API_BASE_URL}/test-cloudinary`,
                 {
                     cloudinary_cloud_name: cloudName.trim(),
                     cloudinary_api_key: apiKey.trim(),
@@ -99,9 +98,8 @@ const CloudinarySettingsModal = ({ isOpen, onClose, onSuccess }) => {
         setSaving(true);
 
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
             const response = await axios.patch(
-                `${API_URL}/api/users/me/cloudinary`,
+                `${API_BASE_URL}/users/me/cloudinary`,
                 {
                     cloudinary_cloud_name: cloudName.trim(),
                     cloudinary_api_key: apiKey.trim(),
